@@ -1,0 +1,478 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==================== ENUMS ====================
+
+enum ScheduleManualStatus {
+  NONE
+  DELAYED
+  CANCELLED
+  MOVED_ROOM
+  ONLINE
+}
+
+enum ComputedScheduleStatus {
+  SCHEDULED
+  STARTING_SOON
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  CANCELLED
+  MOVED_ROOM
+  ONLINE
+}
+
+enum ContentStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  EXPIRED
+  ARCHIVED
+}
+
+enum ScreenStatus {
+  UNPAIRED
+  ONLINE
+  OFFLINE
+  DEGRADED
+  REVOKED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  YOUTUBE
+  INSTAGRAM
+  TIKTOK
+  GOOGLE_DRIVE
+  GOOGLE_SLIDES
+  CANVA
+  WEB_EMBED
+}
+
+enum ContentType {
+  SCHEDULE_LAYOUT
+  ANNOUNCEMENT
+  MEDIA
+  COUNTDOWN
+  WELCOME
+  EXAMINATION
+}
+
+enum TargetType {
+  SCREEN
+  SCREEN_GROUP
+  BRANCH
+  ROOM
+  ALL
+}
+
+enum EmergencySeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum SyncConflictPolicy {
+  EXTERNAL_WINS
+  INTERNAL_WINS
+  LAST_WRITE_WINS
+  REQUIRE_REVIEW
+}
+
+// ==================== IDENTITY & AUTH ====================
+
+model Admin {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions     AuthSession[]
+  resetTokens  PasswordResetToken[]
+  activityLogs ActivityLog[]
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  adminId          String
+  sessionTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  adminId   String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+// ==================== ACADEMIC MASTER ====================
+
+model Branch {
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  address   String?
+  timezone  String    @default("Asia/Jakarta")
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  rooms     Room[]
+  schedules Schedule[]
+  screens   Screen[]
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  branchId  String
+  name      String
+  floor     Int      @default(1)
+  capacity  Int?
+  status    String   @default("AVAILABLE")
+  aliases   String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+  screens   Screen[]
+}
+
+model Tutor {
+  id          String   @id @default(cuid())
+  name        String
+  displayName String?
+  title       String?
+  photoUrl    String?
+  aliases     String   @default("[]")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  schedules Schedule[]
+}
+
+model Program {
+  id        String   @id @default(cuid())
+  name      String
+  level     String?
+  color     String   @default("#3B82F6")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes   Class[]
+  schedules Schedule[]
+}
+
+model Class {
+  id           String   @id @default(cuid())
+  programId    String
+  name         String
+  academicYear String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  program   Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String
+  shortName String
+  icon      String?
+  aliases   String   @default("[]")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  schedules Schedule[]
+}
+
+model Schedule {
+  id              String               @id @default(cuid())
+  branchId        String
+  programId       String
+  classId         String
+  subjectId       String
+  tutorId         String
+  roomId          String
+  startAt         DateTime
+  endAt           DateTime
+  manualStatus    ScheduleManualStatus @default(NONE)
+  notes           String?
+  sourceType      String               @default("MANUAL")
+  sourceReference String?
+  sourceVersion   Int                  @default(1)
+  publishedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  archivedAt      DateTime?
+
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  program Program @relation(fields: [programId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  tutor   Tutor   @relation(fields: [tutorId], references: [id])
+  room    Room    @relation(fields: [roomId], references: [id])
+
+  @@index([branchId, startAt, endAt])
+  @@index([roomId, startAt])
+}
+
+// ==================== CONTENT MANAGEMENT ====================
+
+model Announcement {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  summary     String?
+  body        String
+  category    String        @default("GENERAL")
+  priority    Int           @default(1)
+  icon        String?
+  imageUrl    String?
+  startsAt    DateTime
+  endsAt      DateTime
+  status      ContentStatus @default(DRAFT)
+  createdById String
+  publishedAt DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, startsAt, endsAt])
+}
+
+model MediaAsset {
+  id              String        @id @default(cuid())
+  name            String
+  mediaType       MediaType
+  storageKey      String?
+  fileUrl         String?
+  externalUrl     String?
+  thumbnailUrl    String?
+  durationSeconds Int           @default(10)
+  width           Int?
+  height          Int?
+  fileSize        Int?
+  mimeType        String?
+  tags            String        @default("[]")
+  status          ContentStatus @default(PUBLISHED)
+  checksum        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model RunningText {
+  id          String        @id @default(cuid())
+  text        String
+  speed       Int           @default(25)
+  separator   String        @default("★")
+  priority    Int           @default(1)
+  startsAt    DateTime
+  endsAt      DateTime
+  status      ContentStatus @default(PUBLISHED)
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model VoiceAnnouncement {
+  id              String        @id @default(cuid())
+  text            String
+  audioUrl        String?
+  openingAudioUrl String?
+  voiceName       String        @default("id-ID-Wavenet-A")
+  language        String        @default("id-ID")
+  volume          Int           @default(100)
+  repetitions     Int           @default(1)
+  intervalSeconds Int           @default(0)
+  scheduledAt     DateTime
+  priority        Int           @default(1)
+  status          ContentStatus @default(SCHEDULED)
+  createdById     String
+  createdAt       DateTime      @default(now())
+
+  logs VoicePlaybackLog[]
+}
+
+model VoicePlaybackLog {
+  id                  String   @id @default(cuid())
+  voiceAnnouncementId String
+  screenId            String
+  playbackStatus      String   @default("PLAYED")
+  startedAt           DateTime
+  completedAt         DateTime?
+  errorMessage        String?
+  attempt             Int      @default(1)
+
+  voiceAnnouncement VoiceAnnouncement @relation(fields: [voiceAnnouncementId], references: [id], onDelete: Cascade)
+}
+
+// ==================== PLAYLISTS ====================
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priority    Int      @default(1)
+  isActive    Boolean  @default(true)
+  version     Int      @default(1)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items   PlaylistItem[]
+  screens Screen[]
+}
+
+model PlaylistItem {
+  id              String      @id @default(cuid())
+  playlistId      String
+  contentType     ContentType
+  contentId       String
+  sequence        Int
+  durationSeconds Int         @default(15)
+  transition      String      @default("fade")
+  isEnabled       Boolean     @default(true)
+  startsAt        DateTime?
+  endsAt          DateTime?
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@index([playlistId, sequence])
+}
+
+// ==================== SCREENS & DEVICES ====================
+
+model Screen {
+  id               String       @id @default(cuid())
+  deviceId         String       @unique
+  deviceTokenHash  String?
+  pairingCodeHash  String?
+  pairingExpiresAt DateTime?
+  name             String
+  branchId         String
+  roomId           String?
+  floor            Int          @default(1)
+  resolution       String       @default("1920x1080")
+  orientation      String       @default("LANDSCAPE")
+  playlistId       String?
+  templateKey      String       @default("DEFAULT_SCHEDULE")
+  status           ScreenStatus @default(UNPAIRED)
+  lastSeenAt       DateTime?
+  lastSyncAt       DateTime?
+  currentContent   String?
+  appVersion       String       @default("1.0.0")
+  revokedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  branch     Branch             @relation(fields: [branchId], references: [id])
+  room       Room?              @relation(fields: [roomId], references: [id])
+  playlist   Playlist?          @relation(fields: [playlistId], references: [id])
+  groups     ScreenGroupMember[]
+  heartbeats DeviceHeartbeat[]
+}
+
+model ScreenGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  members ScreenGroupMember[]
+}
+
+model ScreenGroupMember {
+  groupId  String
+  screenId String
+
+  group  ScreenGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  screen Screen      @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, screenId])
+}
+
+model DeviceHeartbeat {
+  id                 String   @id @default(cuid())
+  screenId           String
+  connectionStatus   String   @default("ONLINE")
+  currentContent     String?
+  memoryUsage        Float?
+  storageUsage       Float?
+  appVersion         String?
+  clientTime         DateTime
+  serverReceivedAt   DateTime @default(now())
+  timeDriftSeconds   Float    @default(0)
+
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@index([screenId, serverReceivedAt(sort: Desc)])
+}
+
+model EmergencyBroadcast {
+  id           String            @id @default(cuid())
+  title        String
+  instruction  String
+  severity     EmergencySeverity @default(WARNING)
+  icon         String?           @default("alert-octagon")
+  voiceEnabled Boolean           @default(false)
+  audioUrl     String?
+  startsAt     DateTime          @default(now())
+  endedAt      DateTime?
+  createdById  String
+  status       ContentStatus     @default(PUBLISHED)
+  version      Int               @default(1)
+  createdAt    DateTime          @default(now())
+}
+
+// ==================== SYSTEM & AUDIT ====================
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String?
+  beforeData Json?
+  afterData  Json?
+  ipAddress  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  admin Admin @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt(sort: Desc)])
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
