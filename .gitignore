@@ -4,6 +4,7 @@ node_modules/
 # Next.js build output
 .next/
 out/
+.vercel/
 
 # Environment variables and local secrets
 .env
@@ -14,6 +15,7 @@ out/
 *.db
 *.db-*
 *.db.backup*
+prisma/schema.sql
 
 # TypeScript and test caches
 *.tsbuildinfo

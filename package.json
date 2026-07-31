@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "verify": "npm run typecheck && npm test && npm run build",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed"

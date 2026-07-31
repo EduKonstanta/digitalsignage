@@ -4,8 +4,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   APP_URL: z.string().url().default("http://localhost:3000"),
 
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  DATABASE_URL: z.string().min(1).default("file:./dev.db"),
   DIRECT_URL: z.string().optional(),
+  TURSO_DATABASE_URL: z.string().url().optional(),
+  TURSO_AUTH_TOKEN: z.string().optional(),
 
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 characters"),
   AUTH_TRUST_HOST: z.string().optional(),
@@ -28,6 +30,8 @@ export const env = envSchema.parse({
   APP_URL: process.env.APP_URL,
   DATABASE_URL: process.env.DATABASE_URL,
   DIRECT_URL: process.env.DIRECT_URL,
+  TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
+  TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
   AUTH_SECRET: process.env.AUTH_SECRET,
   AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST,
   REDIS_URL: process.env.REDIS_URL,

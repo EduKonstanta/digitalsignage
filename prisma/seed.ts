@@ -1,23 +1,22 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import argon2 from "argon2";
-import path from "path";
+import { createDatabaseAdapter } from "../lib/database-adapter";
 
-const dbPath = "file:" + path.resolve(process.cwd(), "dev.db");
-const adapter = new PrismaBetterSqlite3({ url: dbPath });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter: createDatabaseAdapter() });
 
 async function main() {
   console.log("Seeding database for KE Digital Signage...");
 
   // 1. Create Default Admin User
-  const passwordHash = await argon2.hash("admin123");
+  const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim() || "admin@konstanta.edu";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "admin123";
+  const passwordHash = await argon2.hash(adminPassword);
   const admin = await prisma.admin.upsert({
-    where: { email: "admin@konstanta.edu" },
+    where: { email: adminEmail },
     update: {},
     create: {
       name: "Super Admin",
-      email: "admin@konstanta.edu",
+      email: adminEmail,
       passwordHash,
       isActive: true,
     },
