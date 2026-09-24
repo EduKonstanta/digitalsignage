@@ -1,8 +1,24 @@
 import { NextRequest } from "next/server";
+import { attendanceEmitter, AttendanceTapEvent } from "@/lib/attendance-events";
+import { apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { getScreenFromRequest } from "@/lib/screen-auth";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  // Stream ini mengirim data presensi siswa, jadi hanya untuk layar yang sudah
+  // dipasangkan atau admin yang login. EventSource tidak bisa mengirim header
+  // kustom, sehingga token boleh lewat query ?screenToken=.
+  const screen = await getScreenFromRequest(req);
+  if (!screen) {
+    const admin = await requireAdmin();
+    if (!admin) {
+      return apiError("Layar belum dipasangkan", "SCREEN_UNAUTHORIZED", 401);
+    }
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
@@ -17,6 +33,40 @@ export async function GET(req: NextRequest) {
         )
       );
 
+      let closed = false;
+
+      /**
+       * Satu jalur pembersihan untuk semua penyebab koneksi berakhir. Sebelumnya
+       * kegagalan heartbeat hanya menghentikan interval tanpa melepas listener,
+       * sehingga handler menumpuk di attendanceEmitter (batas 100 listener)
+       * setiap kali koneksi mati tanpa event "abort".
+       */
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(interval);
+        attendanceEmitter.off("attendance_tap", handleAttendanceTap);
+        try {
+          controller.close();
+        } catch {
+          // stream already closed
+        }
+      };
+
+      // Listener for live student card tap attendance events
+      const handleAttendanceTap = (event: AttendanceTapEvent) => {
+        try {
+          controller.enqueue(
+            encoder.encode(`event: attendance_tap\ndata: ${JSON.stringify(event)}\n\n`)
+          );
+        } catch (err) {
+          console.error("SSE enqueue error:", err);
+          cleanup();
+        }
+      };
+
+      attendanceEmitter.on("attendance_tap", handleAttendanceTap);
+
       // Ping heartbeats every 15 seconds to keep connection alive
       const interval = setInterval(() => {
         try {
@@ -28,14 +78,11 @@ export async function GET(req: NextRequest) {
             )
           );
         } catch {
-          clearInterval(interval);
+          cleanup();
         }
       }, 15000);
 
-      req.signal.addEventListener("abort", () => {
-        clearInterval(interval);
-        controller.close();
-      });
+      req.signal.addEventListener("abort", cleanup);
     },
   });
 

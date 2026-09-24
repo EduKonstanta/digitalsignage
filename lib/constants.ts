@@ -1,3 +1,5 @@
+export const SESSION_COOKIE_NAME = "ke_admin_session";
+
 export const APP_NAME = "KE Digital Signage";
 export const APP_TAGLINE = "Grow · Innovative · Engage";
 export const ORG_NAME = "Konstanta Education";
@@ -22,3 +24,6 @@ export const COMPUTED_SCHEDULE_STATUS_COLORS = {
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
 export const DEFAULT_SSE_RECONNECT_MS = 5000;
 export const PAIRING_CODE_EXPIRY_MINUTES = 15;
+
+/** Header token perangkat layar TV (dipakai sisi klien dan server). */
+export const SCREEN_TOKEN_HEADER = "x-screen-token";
