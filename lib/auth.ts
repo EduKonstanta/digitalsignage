@@ -2,8 +2,8 @@ import argon2 from "argon2";
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
-const SESSION_COOKIE_NAME = "ke_admin_session";
 const SESSION_EXPIRY_DAYS = 7;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -74,6 +74,15 @@ export async function getAdminFromSession() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Guard for API route handlers: resolves the current admin from the session
+ * cookie, or returns null when there is no valid session. Callers should
+ * respond with an UNAUTHORIZED apiError when this returns null.
+ */
+export async function requireAdmin() {
+  return getAdminFromSession();
 }
 
 export async function revokeCurrentSession() {
