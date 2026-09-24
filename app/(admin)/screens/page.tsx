@@ -199,11 +199,35 @@ export default function ScreensPage() {
       return;
     }
 
+    /**
+     * Kode boleh ditentukan sendiri. Kode pilihan sendiri dibuat permanen: tidak
+     * kedaluwarsa dan tidak hangus setelah dipakai, sehingga TV yang sama bisa
+     * dipasang ulang berkali-kali tanpa membuat kode baru tiap kali.
+     */
+    const typed = window
+      .prompt(
+        `Kode pairing untuk "${screen.name}".\n\n` +
+          "Isi 6 angka pilihan sendiri (contoh 202235) — kode itu berlaku selamanya " +
+          "dan bisa dipakai ulang.\n\n" +
+          "Kosongkan untuk kode acak sekali pakai yang hangus dalam 15 menit.",
+        "",
+      )
+      ?.trim();
+
+    if (typed === undefined) return; // dibatalkan
+
+    if (typed && !/^\d{6}$/.test(typed)) {
+      setError("Kode pairing harus tepat 6 angka.");
+      return;
+    }
+
     setPairingId(screen.id);
     setError(null);
     try {
       const response = await fetch(`/api/v1/screens/${screen.id}/pairing-code`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(typed ? { pairingCode: typed, permanent: true } : {}),
       });
       const body = (await response.json()) as ApiResponse<CreatedScreen>;
       if (!response.ok || !body.success) {

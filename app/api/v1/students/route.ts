@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
@@ -72,8 +73,17 @@ export async function POST(req: NextRequest) {
       isActive = true,
     } = body;
 
-    if (!nis || !name || !className) {
-      return apiError("NIS, Nama, dan Kelas/Rombel wajib diisi", "VALIDATION_ERROR", 400);
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedCard = typeof cardUid === "string" ? cardUid.trim() : "";
+    const internalNis = typeof nis === "string" && nis.trim()
+      ? nis.trim()
+      : `RFID-${randomUUID()}`;
+    const internalClassName = typeof className === "string" && className.trim()
+      ? className.trim()
+      : "Konstanta Education";
+
+    if (!trimmedName || !trimmedCard) {
+      return apiError("Nama siswa dan UID kartu RFID wajib diisi", "VALIDATION_ERROR", 400);
     }
 
     const normalizedVoiceGender = String(voiceGender).trim().toUpperCase();
@@ -83,33 +93,30 @@ export async function POST(req: NextRequest) {
 
     // Check duplicate NIS
     const existingNis = await db.student.findUnique({
-      where: { nis: nis.trim() },
+      where: { nis: internalNis },
     });
     if (existingNis) {
-      return apiError(`Siswa dengan NIS ${nis} sudah terdaftar`, "DUPLICATE_NIS", 409);
+      return apiError("Identitas internal siswa sudah digunakan", "DUPLICATE_NIS", 409);
     }
 
     // Check duplicate Card UID if supplied
-    const trimmedCard = cardUid?.trim();
-    if (trimmedCard) {
-      const existingCard = await db.student.findUnique({
-        where: { cardUid: trimmedCard },
-      });
-      if (existingCard) {
-        return apiError(
-          `UID Kartu ${trimmedCard} sudah digunakan oleh siswa lain (${existingCard.name})`,
-          "DUPLICATE_CARD_UID",
-          409
-        );
-      }
+    const existingCard = await db.student.findUnique({
+      where: { cardUid: trimmedCard },
+    });
+    if (existingCard) {
+      return apiError(
+        `UID Kartu ${trimmedCard} sudah digunakan oleh siswa lain (${existingCard.name})`,
+        "DUPLICATE_CARD_UID",
+        409
+      );
     }
 
     const student = await db.student.create({
       data: {
-        nis: nis.trim(),
-        name: name.trim(),
-        cardUid: trimmedCard || null,
-        className: className.trim(),
+        nis: internalNis,
+        name: trimmedName,
+        cardUid: trimmedCard,
+        className: internalClassName,
         voiceGender: normalizedVoiceGender,
         branchId: branchId || null,
         parentName: parentName?.trim() || null,

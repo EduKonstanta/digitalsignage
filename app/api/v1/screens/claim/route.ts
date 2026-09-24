@@ -28,7 +28,23 @@ export async function POST(req: NextRequest) {
       where: { pairingCodeHash, revokedAt: null },
     });
 
-    if (!screen || !screen.pairingExpiresAt || screen.pairingExpiresAt < new Date()) {
+    if (!screen) {
+      return apiError(
+        "Kode pairing tidak valid atau sudah kedaluwarsa",
+        "PAIRING_CODE_INVALID",
+        400,
+      );
+    }
+
+    /**
+     * pairingExpiresAt null berarti kode permanen: dipasang sendiri oleh admin,
+     * tidak punya tenggat, dan tetap berlaku setelah dipakai supaya layar yang
+     * sama bisa dipasang ulang tanpa membuat kode baru. Kode sekali pakai punya
+     * tenggat dan dihapus begitu ditukar.
+     */
+    const isPermanent = screen.pairingExpiresAt === null;
+
+    if (!isPermanent && screen.pairingExpiresAt! < new Date()) {
       return apiError(
         "Kode pairing tidak valid atau sudah kedaluwarsa",
         "PAIRING_CODE_INVALID",
@@ -43,8 +59,7 @@ export async function POST(req: NextRequest) {
       data: {
         status: "ONLINE",
         deviceTokenHash: hashToken(deviceToken),
-        pairingCodeHash: null,
-        pairingExpiresAt: null,
+        ...(isPermanent ? {} : { pairingCodeHash: null, pairingExpiresAt: null }),
         lastSeenAt: new Date(),
       },
     });

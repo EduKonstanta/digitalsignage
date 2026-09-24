@@ -82,6 +82,10 @@ async function updateStudent(
       return apiError("Nama wajib diisi", "VALIDATION_ERROR", 400);
     }
 
+    if (cardUid !== undefined && !String(cardUid).trim()) {
+      return apiError("UID kartu RFID wajib diisi", "VALIDATION_ERROR", 400);
+    }
+
     if (className !== undefined && !String(className).trim()) {
       return apiError("Kelas/Rombel wajib diisi", "VALIDATION_ERROR", 400);
     }
@@ -97,7 +101,7 @@ async function updateStudent(
     }
 
     // Check duplicate card UID if changed
-    const trimmedCard = cardUid?.trim();
+    const trimmedCard = cardUid === undefined ? undefined : String(cardUid).trim();
     if (trimmedCard && trimmedCard !== existing.cardUid) {
       const duplicateCard = await db.student.findUnique({
         where: { cardUid: trimmedCard },
@@ -179,7 +183,7 @@ export async function DELETE(
     if (existing._count.attendances > 0) {
       return apiError(
         `${existing.name} sudah punya ${existing._count.attendances} catatan presensi, jadi tidak bisa dihapus. ` +
-          `Hilangkan centang "Siswa aktif" lewat tombol Edit agar kartunya berhenti berfungsi tanpa menghapus riwayat.`,
+          `Data siswa dipertahankan agar riwayat tap pada Digital Signage tidak hilang.`,
         "STUDENT_HAS_ATTENDANCE",
         409,
       );

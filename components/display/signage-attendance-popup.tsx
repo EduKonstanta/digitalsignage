@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { CheckCircle2, Sparkles, MessageSquare, Clock, User, X, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Sparkles, Clock, CreditCard, User, X } from "lucide-react";
 import type { AttendanceTapEvent } from "@/lib/attendance-events";
 import { triggerGenZAnnouncement } from "@/lib/cinema-audio";
 
@@ -160,7 +160,7 @@ export function SignageAttendancePopup({
                   }`}
                 >
                   <Sparkles className="h-3 w-3" />
-                  {isCheckOut ? "TAP PULANG / CHECK-OUT" : "TAP PRESENSI / CHECK-IN"}
+                  {isCheckOut ? "SISWA TAP KELUAR" : "SISWA TELAH MASUK"}
                 </span>
 
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">
@@ -173,41 +173,16 @@ export function SignageAttendancePopup({
                 {event.studentName}
               </h2>
 
-              <div className="mt-1 flex items-center gap-3 text-xs sm:text-sm text-slate-300">
-                <span className="font-semibold text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">
-                  NIS: {event.nis}
-                </span>
-                <span className="font-semibold text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
-                  Kelas: {event.className}
-                </span>
-              </div>
-
-              {/* Fonnte WhatsApp Status Banner */}
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-900/90 border border-slate-800 px-3 py-1.5 text-xs text-slate-300">
-                <MessageSquare className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span className="truncate">
-                  {["SENT", "DELIVERED", "READ"].includes(event.fonnteStatus) ? (
-                    <span className="text-emerald-300 font-semibold flex items-center gap-1">
-                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                      Notifikasi WhatsApp terkirim ke Orang Tua ({event.parentPhone || "Terverifikasi"})
-                    </span>
-                  ) : event.fonnteStatus === "QUEUED" ? (
-                    <span className="text-cyan-300 font-medium">
-                      Notifikasi WhatsApp sedang diproses untuk Orang Tua
-                    </span>
-                  ) : event.fonnteStatus === "DISABLED" ? (
-                    <span className="text-slate-400">
-                      Presensi tercatat di sistem (Notifikasi WhatsApp tidak diaktifkan)
-                    </span>
-                  ) : event.fonnteStatus === "SKIPPED" ? (
-                    <span className="text-slate-400">
-                      Presensi tercatat di sistem (Nomor WA orang tua belum diatur)
-                    </span>
-                  ) : (
-                    <span className="text-amber-400 font-medium">
-                      Presensi tercatat (Gagal mengirim WA ke orang tua)
-                    </span>
-                  )}
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300">
+                {event.cardUid ? (
+                  <span className="flex items-center gap-1.5 font-mono text-cyan-300">
+                    <CreditCard className="h-4 w-4" /> RFID {event.cardUid}
+                  </span>
+                ) : null}
+                <span className="font-semibold text-emerald-300">
+                  {isCheckOut
+                    ? "Tap keluar berhasil tercatat."
+                    : "Tap berhasil, siswa telah masuk ke outlet Konstanta Education."}
                 </span>
               </div>
             </div>
