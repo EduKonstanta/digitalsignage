@@ -127,7 +127,6 @@ export function SignageAttendancePopup({
                 }`}
               >
                 {event.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={event.photoUrl}
                     alt={event.studentName}

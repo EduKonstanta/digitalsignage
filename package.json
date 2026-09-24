@@ -9,10 +9,11 @@
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm test && npm run build",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "lint": "eslint ."
   },
   "prisma": {
     "seed": "node --import tsx/esm prisma/seed.ts"

@@ -48,7 +48,10 @@ export function SignageTicker({ messages, now }: SignageTickerProps) {
           >
             {message.text}
           </span>
-          <span className="ml-8 text-cyan-400 font-black text-[clamp(1.2rem,1.8vw,2.5rem)]">///</span>
+          {/* Dibungkus ekspresi: sebagai teks polos, `///` terbaca ESLint sebagai komentar. */}
+          <span className="ml-8 text-cyan-400 font-black text-[clamp(1.2rem,1.8vw,2.5rem)]">
+            {"///"}
+          </span>
         </div>
       ))}
     </div>
