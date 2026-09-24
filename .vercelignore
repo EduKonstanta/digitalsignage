@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.next-dev/
+out/
+.git/
+.deploy-tmp/
+.env
+.env.local
+.env.*.local
+*.db
+*.db-*
+*.db.backup*
+coverage/
+*.tsbuildinfo
+*.log
+.vscode/
+.idea/
