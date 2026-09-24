@@ -7,6 +7,7 @@ import {
   MasterCrudPage,
 } from "@/components/admin/master-crud-page";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface ProgramOption {
   id: string;
@@ -51,6 +52,7 @@ export default function AcademicClassesPage() {
       description="Tambah, edit, nonaktifkan, dan hapus kelompok belajar."
       entityLabel="Kelas"
       endpoint="/api/v1/classes"
+      sourceUrl={GOOGLE_SHEETS_URL}
       canCreate={programs.length > 0}
       createDisabledMessage="Tambahkan program terlebih dahulu sebelum membuat kelas."
       emptyIcon={<Users2 className="h-8 w-8" />}

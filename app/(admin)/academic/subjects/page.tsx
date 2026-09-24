@@ -10,6 +10,7 @@ import {
   SubjectIcon,
 } from "@/components/admin/subject-icons";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface Subject {
   id: string;
@@ -54,6 +55,7 @@ export default function SubjectsPage() {
       entityLabel="Mata Pelajaran"
       entityLabelLower="mata pelajaran"
       endpoint="/api/v1/subjects"
+      sourceUrl={GOOGLE_SHEETS_URL}
       emptyIcon={<BookOpen className="h-8 w-8" />}
       initialValues={{
         name: "",

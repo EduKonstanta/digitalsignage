@@ -1,64 +1,61 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { apiSuccess, apiError } from "@/lib/api-response";
 import { computeScheduleStatus, ScheduleManualStatus } from "@/domain/schedule-status";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
+import { createSchedule } from "@/lib/academic-store";
 import { z } from "zod";
 
 const scheduleSchema = z.object({
-  branchId: z.string().min(1, "Branch ID required"),
-  programId: z.string().min(1, "Program ID required"),
-  classId: z.string().min(1, "Class ID required"),
-  subjectId: z.string().min(1, "Subject ID required"),
-  tutorId: z.string().min(1, "Tutor ID required"),
-  roomId: z.string().min(1, "Room ID required"),
+  branchId: z.string().min(1, "Cabang wajib dipilih"),
+  programId: z.string().min(1, "Program wajib dipilih"),
+  classId: z.string().min(1, "Kelas wajib dipilih"),
+  subjectId: z.string().min(1, "Mata pelajaran wajib dipilih"),
+  tutorId: z.string().min(1, "Tutor wajib dipilih"),
+  roomId: z.string().min(1, "Ruangan wajib dipilih"),
   startAt: z.string().datetime(),
   endAt: z.string().datetime(),
-  manualStatus: z.enum(["NONE", "DELAYED", "CANCELLED", "MOVED_ROOM", "ONLINE"]).default("NONE"),
-  notes: z.string().optional(),
+  manualStatus: z
+    .enum(["NONE", "DELAYED", "CANCELLED", "MOVED_ROOM", "ONLINE"])
+    .default("NONE"),
+  notes: z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId");
     const roomId = searchParams.get("roomId");
     const date = searchParams.get("date"); // YYYY-MM-DD
 
-    const where: any = {};
-    if (branchId) where.branchId = branchId;
-    if (roomId) where.roomId = roomId;
+    // Batas hari mengikuti WIB, sama seperti /api/v1/display. Memakai batas UTC
+    // membuat kelas 00:00-06:59 WIB masuk ke hari yang salah di dashboard.
+    const dayStart = date ? new Date(`${date}T00:00:00+07:00`) : null;
+    const dayEnd = date ? new Date(`${date}T23:59:59.999+07:00`) : null;
 
-    if (date) {
-      const dayStart = new Date(`${date}T00:00:00.000Z`);
-      const dayEnd = new Date(`${date}T23:59:59.999Z`);
-      where.startAt = { gte: dayStart, lte: dayEnd };
-    }
-
-    const schedules = await db.schedule.findMany({
-      where,
-      include: {
-        branch: true,
-        program: true,
-        class: true,
-        subject: true,
-        tutor: true,
-        room: true,
-      },
-      orderBy: { startAt: "asc" },
-    });
+    const live = await getLiveAcademicData();
 
     const now = new Date();
-    const enriched = schedules.map((sch) => ({
-      ...sch,
-      computedStatus: computeScheduleStatus({
-        startAt: sch.startAt,
-        endAt: sch.endAt,
-        manualStatus: sch.manualStatus as ScheduleManualStatus,
-        now,
-      }),
-    }));
+    const schedules = live.schedules
+      .filter((schedule) => !branchId || schedule.branchId === branchId)
+      .filter((schedule) => !roomId || schedule.roomId === roomId)
+      .filter((schedule) => !dayStart || !dayEnd || (schedule.startAt >= dayStart && schedule.startAt <= dayEnd))
+      .slice()
+      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
+      .map((schedule) => ({
+        ...schedule,
+        computedStatus: computeScheduleStatus({
+          startAt: schedule.startAt,
+          endAt: schedule.endAt,
+          manualStatus: schedule.manualStatus,
+          now,
+        }),
+      }));
 
-    return apiSuccess(enriched);
+    return apiSuccess(schedules);
   } catch (error) {
     return apiError("Gagal mengambil daftar jadwal", "SCHEDULE_FETCH_ERROR", 500, error);
   }
@@ -66,6 +63,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const body = await req.json();
     const validated = scheduleSchema.parse(body);
 
@@ -73,53 +73,76 @@ export async function POST(req: NextRequest) {
     const endAt = new Date(validated.endAt);
 
     if (endAt <= startAt) {
-      return apiError("Waktu selesai harus lebih besar dari waktu mulai", "INVALID_TIME_RANGE", 400);
+      return apiError(
+        "Waktu selesai harus lebih besar dari waktu mulai",
+        "INVALID_TIME_RANGE",
+        400,
+      );
     }
 
-    // Conflict Check 1: Room Double-Booking
-    const roomConflict = await db.schedule.findFirst({
-      where: {
-        roomId: validated.roomId,
-        archivedAt: null,
-        manualStatus: { not: "CANCELLED" },
-        OR: [
-          { startAt: { lte: startAt }, endAt: { gt: startAt } },
-          { startAt: { lt: endAt }, endAt: { gte: endAt } },
-          { startAt: { gte: startAt }, endAt: { lte: endAt } },
-        ],
-      },
+    const live = await getLiveAcademicData();
+
+    // Check Room Conflict
+    const roomConflict = live.schedules.find((s) => {
+      if (s.roomId !== validated.roomId) return false;
+      if (s.manualStatus === "CANCELLED") return false;
+      const sStart = s.startAt.getTime();
+      const sEnd = s.endAt.getTime();
+      const nStart = startAt.getTime();
+      const nEnd = endAt.getTime();
+      return (
+        (nStart >= sStart && nStart < sEnd) ||
+        (nEnd > sStart && nEnd <= sEnd) ||
+        (nStart <= sStart && nEnd >= sEnd)
+      );
     });
 
     if (roomConflict) {
-      return apiError("Ruangan yang dipilih sudah digunakan pada bentang waktu tersebut", "ROOM_CONFLICT", 409);
+      return apiError(
+        "Ruangan yang dipilih sudah digunakan pada bentang waktu tersebut",
+        "ROOM_CONFLICT",
+        409,
+      );
     }
 
-    // Conflict Check 2: Tutor Double-Booking
-    const tutorConflict = await db.schedule.findFirst({
-      where: {
-        tutorId: validated.tutorId,
-        archivedAt: null,
-        manualStatus: { not: "CANCELLED" },
-        OR: [
-          { startAt: { lte: startAt }, endAt: { gt: startAt } },
-          { startAt: { lt: endAt }, endAt: { gte: endAt } },
-          { startAt: { gte: startAt }, endAt: { lte: endAt } },
-        ],
-      },
+    // Check Tutor Conflict
+    const tutorConflict = live.schedules.find((s) => {
+      if (s.tutorId !== validated.tutorId) return false;
+      if (s.manualStatus === "CANCELLED") return false;
+      const sStart = s.startAt.getTime();
+      const sEnd = s.endAt.getTime();
+      const nStart = startAt.getTime();
+      const nEnd = endAt.getTime();
+      return (
+        (nStart >= sStart && nStart < sEnd) ||
+        (nEnd > sStart && nEnd <= sEnd) ||
+        (nStart <= sStart && nEnd >= sEnd)
+      );
     });
 
     if (tutorConflict) {
-      return apiError("Tutor/KangGuru sudah mengajar di kelas lain pada bentang waktu tersebut", "TUTOR_CONFLICT", 409);
+      return apiError(
+        "Tutor/KangGuru sudah mengajar di kelas lain pada bentang waktu tersebut",
+        "TUTOR_CONFLICT",
+        409,
+      );
     }
 
-    const schedule = await db.schedule.create({
-      data: {
-        ...validated,
-        startAt,
-        endAt,
-        publishedAt: new Date(),
+    const schedule = await createSchedule(
+      {
+        branchId: validated.branchId,
+        programId: validated.programId,
+        classId: validated.classId,
+        subjectId: validated.subjectId,
+        tutorId: validated.tutorId,
+        roomId: validated.roomId,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        manualStatus: validated.manualStatus as ScheduleManualStatus,
+        notes: validated.notes || null,
       },
-    });
+      admin.id,
+    );
 
     return apiSuccess(schedule, undefined, 201);
   } catch (error) {

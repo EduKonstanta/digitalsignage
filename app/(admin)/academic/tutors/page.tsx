@@ -6,6 +6,7 @@ import {
   MasterCrudPage,
 } from "@/components/admin/master-crud-page";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface Tutor {
   id: string;
@@ -51,6 +52,7 @@ export default function TutorsPage() {
       description="Tambah, perbarui, nonaktifkan, atau hapus profil tenaga pengajar."
       entityLabel="Tutor"
       endpoint="/api/v1/tutors"
+      sourceUrl={GOOGLE_SHEETS_URL}
       emptyIcon={<GraduationCap className="h-8 w-8" />}
       initialValues={{
         name: "",

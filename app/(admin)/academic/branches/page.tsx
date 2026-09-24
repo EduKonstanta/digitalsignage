@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   Edit3,
+  ExternalLink,
   Globe,
   LoaderCircle,
   MapPin,
@@ -27,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface Branch {
   id: string;
@@ -226,14 +228,17 @@ export default function BranchesPage() {
             Tambah, perbarui, dan hapus lokasi cabang operasional.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="gap-2"
-          onClick={showForm ? closeForm : openCreateForm}
-        >
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? "Tutup Form" : "Tambah Cabang"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <a href={GOOGLE_SHEETS_URL} target="_blank" rel="noopener noreferrer">
+            <Button size="sm" variant="outline" className="gap-2">
+              <ExternalLink className="h-4 w-4" /> Buka Google Sheet
+            </Button>
+          </a>
+          <Button size="sm" className="gap-2" onClick={showForm ? closeForm : openCreateForm}>
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? "Tutup Form" : "Tambah Cabang"}
+          </Button>
+        </div>
       </div>
 
       {showForm ? (

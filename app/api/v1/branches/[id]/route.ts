@@ -1,52 +1,53 @@
 import { NextRequest } from "next/server";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { updateBranch, deleteBranch, AcademicDependencyError } from "@/lib/academic-store";
+import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
 import { z } from "zod";
-import { apiError, apiSuccess } from "@/lib/api-response";
-import { db } from "@/lib/db";
 
-const branchUpdateSchema = z.object({
-  name: z.string().min(2, "Nama cabang minimal 2 karakter"),
-  code: z.string().min(2, "Kode cabang minimal 2 karakter"),
-  address: z.string().optional(),
-  timezone: z.string().min(1, "Timezone wajib dipilih"),
-  isActive: z.boolean(),
+const updateBranchSchema = z.object({
+  name: z.string().min(2, "Nama cabang minimal 2 karakter").optional(),
+  code: z.string().min(2, "Kode cabang minimal 2 karakter").optional(),
+  address: z.string().optional().nullable(),
+  timezone: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, context: RouteContext) {
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const body = await req.json();
-    const validated = branchUpdateSchema.parse(body);
+    const validated = updateBranchSchema.parse(body);
 
-    const currentBranch = await db.branch.findUnique({ where: { id } });
-    if (!currentBranch) {
-      return apiError("Cabang tidak ditemukan", "BRANCH_NOT_FOUND", 404);
+    if (validated.code) {
+      const live = await getLiveAcademicData();
+      const duplicate = live.branches.find(
+        (b) => b.id !== id && b.code.toUpperCase() === validated.code!.trim().toUpperCase(),
+      );
+      if (duplicate) {
+        return apiError("Kode cabang sudah digunakan", "BRANCH_CODE_EXISTS", 400);
+      }
     }
 
-    const duplicateCode = await db.branch.findFirst({
-      where: {
-        code: validated.code,
-        id: { not: id },
+    const updated = await updateBranch(
+      id,
+      {
+        ...(validated.name ? { name: validated.name.trim() } : {}),
+        ...(validated.code ? { code: validated.code.trim().toUpperCase() } : {}),
+        ...(validated.address !== undefined ? { address: validated.address?.trim() || null } : {}),
+        ...(validated.timezone ? { timezone: validated.timezone } : {}),
+        ...(validated.isActive !== undefined ? { isActive: validated.isActive } : {}),
       },
-    });
-    if (duplicateCode) {
-      return apiError("Kode cabang sudah digunakan", "BRANCH_CODE_EXISTS", 409);
-    }
+      admin.id,
+    );
 
-    const branch = await db.branch.update({
-      where: { id },
-      data: validated,
-      include: {
-        _count: {
-          select: { rooms: true, schedules: true, screens: true },
-        },
-      },
-    });
-
-    return apiSuccess(branch);
+    return apiSuccess(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);
@@ -55,39 +56,22 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_req: NextRequest, context: RouteContext) {
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
-    const branch = await db.branch.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { rooms: true, schedules: true, screens: true },
-        },
-      },
-    });
+    await deleteBranch(id, admin.id);
 
-    if (!branch) {
-      return apiError("Cabang tidak ditemukan", "BRANCH_NOT_FOUND", 404);
-    }
-
-    const dependencies = [
-      branch._count.rooms ? `${branch._count.rooms} ruangan` : null,
-      branch._count.schedules ? `${branch._count.schedules} jadwal` : null,
-      branch._count.screens ? `${branch._count.screens} layar` : null,
-    ].filter(Boolean);
-
-    if (dependencies.length > 0) {
-      return apiError(
-        `Cabang tidak dapat dihapus karena masih digunakan oleh ${dependencies.join(", ")}. Nonaktifkan cabang atau pindahkan data terkait terlebih dahulu.`,
-        "BRANCH_IN_USE",
-        409,
-      );
-    }
-
-    await db.branch.delete({ where: { id } });
     return apiSuccess({ id });
   } catch (error) {
+    if (error instanceof AcademicDependencyError) {
+      return apiError(error.message, "ENTITY_IN_USE", 409);
+    }
     return apiError("Gagal menghapus cabang", "BRANCH_DELETE_ERROR", 500, error);
   }
 }

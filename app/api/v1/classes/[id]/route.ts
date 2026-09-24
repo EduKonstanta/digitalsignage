@@ -1,36 +1,42 @@
 import { NextRequest } from "next/server";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { updateClass, deleteClass, AcademicDependencyError } from "@/lib/academic-store";
 import { z } from "zod";
-import { apiError, apiSuccess } from "@/lib/api-response";
-import { db } from "@/lib/db";
 
-const classUpdateSchema = z.object({
-  programId: z.string().min(1, "Program wajib dipilih"),
-  name: z.string().min(2, "Nama kelas wajib diisi"),
-  academicYear: z.string().min(4, "Tahun akademik wajib diisi"),
-  isActive: z.boolean(),
+const updateClassSchema = z.object({
+  programId: z.string().optional(),
+  name: z.string().min(1, "Nama kelas wajib diisi").optional(),
+  code: z.string().optional(),
+  academicYear: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, context: RouteContext) {
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id } = await context.params;
-    const validated = classUpdateSchema.parse(await req.json());
-    if (!(await db.class.findUnique({ where: { id } }))) {
-      return apiError("Kelas tidak ditemukan", "CLASS_NOT_FOUND", 404);
-    }
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
 
-    const academicClass = await db.class.update({
-      where: { id },
-      data: validated,
-      include: {
-        program: true,
-        _count: { select: { schedules: true } },
+    const { id } = await context.params;
+    const body = await req.json();
+    const validated = updateClassSchema.parse(body);
+
+    const updated = await updateClass(
+      id,
+      {
+        ...(validated.programId ? { programId: validated.programId } : {}),
+        ...(validated.name ? { name: validated.name.trim() } : {}),
+        ...(validated.code ? { code: validated.code.trim().toUpperCase() } : {}),
+        ...(validated.academicYear ? { academicYear: validated.academicYear.trim() } : {}),
+        ...(validated.isActive !== undefined ? { isActive: validated.isActive } : {}),
       },
-    });
-    return apiSuccess(academicClass);
+      admin.id,
+    );
+
+    return apiSuccess(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);
@@ -39,25 +45,22 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_req: NextRequest, context: RouteContext) {
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id } = await context.params;
-    const academicClass = await db.class.findUnique({
-      where: { id },
-      include: { _count: { select: { schedules: true } } },
-    });
-    if (!academicClass) return apiError("Kelas tidak ditemukan", "CLASS_NOT_FOUND", 404);
-    if (academicClass._count.schedules) {
-      return apiError(
-        `Kelas tidak dapat dihapus karena masih digunakan oleh ${academicClass._count.schedules} jadwal. Nonaktifkan kelas terlebih dahulu.`,
-        "CLASS_IN_USE",
-        409,
-      );
-    }
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
 
-    await db.class.delete({ where: { id } });
+    const { id } = await context.params;
+    await deleteClass(id, admin.id);
+
     return apiSuccess({ id });
   } catch (error) {
+    if (error instanceof AcademicDependencyError) {
+      return apiError(error.message, "ENTITY_IN_USE", 409);
+    }
     return apiError("Gagal menghapus kelas", "CLASS_DELETE_ERROR", 500, error);
   }
 }

@@ -1,30 +1,45 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
+import { createRoom } from "@/lib/academic-store";
 import { z } from "zod";
 
 const roomSchema = z.object({
-  branchId: z.string().min(1, "Branch ID required"),
-  name: z.string().min(1, "Nama ruangan required"),
-  floor: z.number().default(1),
-  capacity: z.number().optional(),
-  status: z.string().default("AVAILABLE"),
-  aliases: z.array(z.string()).default([]),
+  branchId: z.string().min(1, "Cabang wajib dipilih"),
+  name: z.string().min(1, "Nama ruangan wajib diisi"),
+  code: z.string().optional(),
+  floor: z.number().int().min(0).default(1),
+  capacity: z.number().int().min(1).optional().nullable(),
+  status: z.enum(["AVAILABLE", "OCCUPIED", "MAINTENANCE"]).default("AVAILABLE"),
+  aliases: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
 export async function GET(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get("branchId");
 
-    const rooms = await db.room.findMany({
-      where: branchId ? { branchId } : undefined,
-      include: {
-        branch: true,
-        _count: { select: { schedules: true, screens: true } },
-      },
-      orderBy: [{ branchId: "asc" }, { floor: "asc" }, { name: "asc" }],
-    });
+    const [live, screens] = await Promise.all([
+      getLiveAcademicData(),
+      db.screen.findMany({ select: { roomId: true } }),
+    ]);
+
+    const rooms = live.rooms
+      .filter((room) => !branchId || room.branchId === branchId)
+      .slice()
+      .sort((a, b) => a.branchId.localeCompare(b.branchId) || a.floor - b.floor || a.name.localeCompare(b.name, "id-ID"))
+      .map((room) => ({
+        ...room,
+        _count: {
+          schedules: live.schedules.filter((schedule) => schedule.roomId === room.id).length,
+          screens: screens.filter((screen) => screen.roomId === room.id).length,
+        },
+      }));
 
     return apiSuccess(rooms);
   } catch (error) {
@@ -34,21 +49,30 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const body = await req.json();
     const validated = roomSchema.parse(body);
 
-    const room = await db.room.create({
-      data: {
-        ...validated,
-        aliases: JSON.stringify(validated.aliases),
+    const room = await createRoom(
+      {
+        branchId: validated.branchId,
+        name: validated.name.trim(),
+        code: validated.code?.trim().toUpperCase(),
+        floor: validated.floor,
+        capacity: validated.capacity,
+        status: validated.status,
+        aliases: validated.aliases,
       },
-    });
+      admin.id,
+    );
 
     return apiSuccess(room, undefined, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);
     }
-    return apiError("Gagal membuat ruangan", "ROOM_CREATE_ERROR", 500, error);
+    return apiError("Gagal menambah ruangan", "ROOM_CREATE_ERROR", 500, error);
   }
 }

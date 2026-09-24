@@ -7,6 +7,7 @@ import {
   MasterCrudPage,
 } from "@/components/admin/master-crud-page";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface BranchOption {
   id: string;
@@ -74,6 +75,7 @@ export default function RoomsPage() {
       entityLabel="Ruangan"
       entityLabelLower="ruangan"
       endpoint="/api/v1/rooms"
+      sourceUrl={GOOGLE_SHEETS_URL}
       canCreate={branches.length > 0}
       createDisabledMessage="Tambahkan cabang terlebih dahulu sebelum membuat ruangan."
       emptyIcon={<DoorOpen className="h-8 w-8" />}

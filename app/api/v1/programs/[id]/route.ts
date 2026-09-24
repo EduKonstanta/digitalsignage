@@ -1,36 +1,47 @@
 import { NextRequest } from "next/server";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/auth";
+import { updateProgram, deleteProgram, AcademicDependencyError } from "@/lib/academic-store";
 import { z } from "zod";
-import { apiError, apiSuccess } from "@/lib/api-response";
-import { db } from "@/lib/db";
 
-const programUpdateSchema = z.object({
-  name: z.string().min(2, "Nama program wajib diisi"),
-  level: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Format warna tidak valid"),
-  isActive: z.boolean(),
+const updateProgramSchema = z.object({
+  name: z.string().min(1, "Nama program wajib diisi").optional(),
+  code: z.string().optional(),
+  level: z.string().optional().nullable(),
+  // Nilai ini dipakai langsung sebagai warna CSS badge program, jadi formatnya
+  // divalidasi di sini (sama seperti sebelum refactor) agar tidak rusak diam-diam.
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, "Warna harus format hex, contoh #3B82F6")
+    .optional(),
+  isActive: z.boolean().optional(),
 });
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
-
-export async function PATCH(req: NextRequest, context: RouteContext) {
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id } = await context.params;
-    const validated = programUpdateSchema.parse(await req.json());
-    if (!(await db.program.findUnique({ where: { id } }))) {
-      return apiError("Program tidak ditemukan", "PROGRAM_NOT_FOUND", 404);
-    }
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
 
-    const program = await db.program.update({
-      where: { id },
-      data: validated,
-      include: {
-        classes: true,
-        _count: { select: { classes: true, schedules: true } },
+    const { id } = await context.params;
+    const body = await req.json();
+    const validated = updateProgramSchema.parse(body);
+
+    const updated = await updateProgram(
+      id,
+      {
+        ...(validated.name ? { name: validated.name.trim() } : {}),
+        ...(validated.code ? { code: validated.code.trim().toUpperCase() } : {}),
+        ...(validated.level !== undefined ? { level: validated.level?.trim() || null } : {}),
+        ...(validated.color ? { color: validated.color } : {}),
+        ...(validated.isActive !== undefined ? { isActive: validated.isActive } : {}),
       },
-    });
-    return apiSuccess(program);
+      admin.id,
+    );
+
+    return apiSuccess(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);
@@ -39,30 +50,22 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_req: NextRequest, context: RouteContext) {
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
-    const program = await db.program.findUnique({
-      where: { id },
-      include: { _count: { select: { classes: true, schedules: true } } },
-    });
-    if (!program) return apiError("Program tidak ditemukan", "PROGRAM_NOT_FOUND", 404);
+    await deleteProgram(id, admin.id);
 
-    const dependencies = [
-      program._count.classes ? `${program._count.classes} kelas` : null,
-      program._count.schedules ? `${program._count.schedules} jadwal` : null,
-    ].filter(Boolean);
-    if (dependencies.length) {
-      return apiError(
-        `Program tidak dapat dihapus karena masih digunakan oleh ${dependencies.join(", ")}. Nonaktifkan program atau pindahkan data terkait terlebih dahulu.`,
-        "PROGRAM_IN_USE",
-        409,
-      );
-    }
-
-    await db.program.delete({ where: { id } });
     return apiSuccess({ id });
   } catch (error) {
+    if (error instanceof AcademicDependencyError) {
+      return apiError(error.message, "ENTITY_IN_USE", 409);
+    }
     return apiError("Gagal menghapus program", "PROGRAM_DELETE_ERROR", 500, error);
   }
 }

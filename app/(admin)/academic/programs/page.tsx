@@ -6,6 +6,7 @@ import {
   MasterCrudPage,
 } from "@/components/admin/master-crud-page";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_SHEETS_URL } from "@/lib/google-sheets/config";
 
 interface Program {
   id: string;
@@ -35,6 +36,7 @@ export default function ProgramsPage() {
       description="Tambah, edit, nonaktifkan, dan hapus program akademik."
       entityLabel="Program"
       endpoint="/api/v1/programs"
+      sourceUrl={GOOGLE_SHEETS_URL}
       emptyIcon={<FolderKanban className="h-8 w-8" />}
       initialValues={{
         name: "",
