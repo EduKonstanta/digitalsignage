@@ -17,6 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   subjects: "Mata Pelajaran",
   programs: "Program",
   classes: "Kelas Rombel",
+  students: "Data Siswa",
   content: "Konten",
   announcements: "Pengumuman",
   media: "Galeri Media",
@@ -24,13 +25,15 @@ const ROUTE_LABELS: Record<string, string> = {
   voice: "Informasi Suara",
   templates: "Template",
   playlists: "Playlist",
-  screens: "Layar Display",
+  screens: "Layar TV",
   pairing: "Pairing",
   integrations: "Integrasi",
   emergency: "Emergency Broadcast",
   preview: "Simulasi Preview",
   "activity-logs": "Log Aktivitas",
-  settings: "Pengaturan",
+  settings: "Sistem",
+  general: "Pengaturan Umum",
+  security: "Keamanan Akun",
 };
 
 export function Breadcrumbs() {

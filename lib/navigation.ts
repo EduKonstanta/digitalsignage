@@ -1,23 +1,14 @@
 import {
   LayoutDashboard,
   Calendar,
-  Building2,
-  DoorOpen,
-  GraduationCap,
-  BookOpen,
-  FolderKanban,
-  Users2,
+  Database,
   Megaphone,
-  Film,
-  Type,
-  Mic,
   Tv,
   Radio,
-  FileSpreadsheet,
   AlertOctagon,
   Eye,
-  History,
   Settings,
+  Users,
 } from "lucide-react";
 
 export interface NavItem {
@@ -44,29 +35,21 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
   {
     groupName: "Konten & Media",
     items: [
-      { title: "Pengumuman", href: "/content/announcements", icon: Megaphone },
-      { title: "Galeri Media", href: "/content/media", icon: Film },
-      { title: "Running Text", href: "/content/running-text", icon: Type },
-      { title: "Informasi Suara", href: "/content/voice", icon: Mic },
+      { title: "Konten", href: "/content", icon: Megaphone },
       { title: "Playlist Signage", href: "/playlists", icon: Radio },
     ],
   },
   {
     groupName: "Akademik & Master",
     items: [
-      { title: "Cabang", href: "/academic/branches", icon: Building2 },
-      { title: "Ruangan", href: "/academic/rooms", icon: DoorOpen },
-      { title: "Tutor (KangGuru)", href: "/academic/tutors", icon: GraduationCap },
-      { title: "Mata Pelajaran", href: "/academic/subjects", icon: BookOpen },
-      { title: "Program", href: "/academic/programs", icon: FolderKanban },
-      { title: "Rombel / Kelas", href: "/academic/classes", icon: Users2 },
+      { title: "Data Master", href: "/academic", icon: Database },
+      { title: "Data Siswa", href: "/students", icon: Users },
     ],
   },
   {
-    groupName: "Perangkat & Integrasi",
+    groupName: "Perangkat",
     items: [
-      { title: "Daftar Layar Display", href: "/screens", icon: Tv },
-      { title: "Google Sheets", href: "/integrations", icon: FileSpreadsheet },
+      { title: "Layar TV", href: "/screens", icon: Tv },
       { title: "Simulasi Preview", href: "/preview", icon: Eye },
     ],
   },
@@ -79,8 +62,7 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
         icon: AlertOctagon,
         isEmergency: true,
       },
-      { title: "Log Aktivitas", href: "/activity-logs", icon: History },
-      { title: "Pengaturan", href: "/settings", icon: Settings },
+      { title: "Sistem", href: "/settings", icon: Settings },
     ],
   },
 ];

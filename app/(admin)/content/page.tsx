@@ -2,40 +2,40 @@
 
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Settings, FileSpreadsheet, History, KeyRound } from "lucide-react";
+import { Megaphone, Film, Type, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import GeneralSettingsPage from "./general/page";
-import SecuritySettingsPage from "./security/page";
-import IntegrationsPage from "../integrations/page";
-import ActivityLogsPage from "../activity-logs/page";
+import AnnouncementsPage from "./announcements/page";
+import MediaPage from "./media/page";
+import RunningTextPage from "./running-text/page";
+import VoiceAnnouncementsPage from "./voice/page";
 
 const TABS = [
-  { key: "general", label: "Pengaturan Umum", icon: Settings, Component: GeneralSettingsPage },
-  { key: "security", label: "Keamanan Akun", icon: KeyRound, Component: SecuritySettingsPage },
-  { key: "integrations", label: "Google Sheets", icon: FileSpreadsheet, Component: IntegrationsPage },
-  { key: "activity-logs", label: "Log Aktivitas", icon: History, Component: ActivityLogsPage },
+  { key: "announcements", label: "Pengumuman", icon: Megaphone, Component: AnnouncementsPage },
+  { key: "media", label: "Galeri Media", icon: Film, Component: MediaPage },
+  { key: "running-text", label: "Running Text", icon: Type, Component: RunningTextPage },
+  { key: "voice", label: "Informasi Suara", icon: Mic, Component: VoiceAnnouncementsPage },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-function SystemTabs() {
+function ContentTabs() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = (searchParams.get("tab") as TabKey) || "general";
+  const activeTab = (searchParams.get("tab") as TabKey) || "announcements";
   const active = TABS.find((tab) => tab.key === activeTab) ?? TABS[0];
   const ActiveComponent = active.Component;
 
   function selectTab(key: TabKey) {
-    router.replace(`/settings?tab=${key}`, { scroll: false });
+    router.replace(`/content?tab=${key}`, { scroll: false });
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Sistem</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Konten Layar TV</h1>
         <p className="text-sm text-muted-foreground">
-          Pengaturan aplikasi, sumber data Google Sheets, dan riwayat aktivitas dalam satu halaman.
+          Semua yang tampil di layar TV — pengumuman, media, running text, dan info suara — dalam satu halaman.
         </p>
       </div>
 
@@ -67,10 +67,10 @@ function SystemTabs() {
   );
 }
 
-export default function SystemHubPage() {
+export default function ContentHubPage() {
   return (
     <Suspense fallback={null}>
-      <SystemTabs />
+      <ContentTabs />
     </Suspense>
   );
 }

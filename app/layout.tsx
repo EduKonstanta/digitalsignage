@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -34,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${geistSans.variable} ${geistMono.variable} dark`} suppressHydrationWarning>
+    <html lang="id" className="dark" suppressHydrationWarning>
       <body className="bg-background text-foreground antialiased min-h-screen">
         <ThemeProvider defaultTheme="dark" storageKey="ke-theme">
           {children}

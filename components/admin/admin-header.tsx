@@ -1,16 +1,31 @@
 "use client";
 
-import React from "react";
-import { Search, Bell, User, LogOut, Tv, Menu } from "lucide-react";
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Search, Bell, LogOut, Tv, Menu, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
 interface AdminHeaderProps {
+  admin: { name: string; email: string };
   onToggleMobileNav?: () => void;
 }
 
-export function AdminHeader({ onToggleMobileNav }: AdminHeaderProps) {
+export function AdminHeader({ admin, onToggleMobileNav }: AdminHeaderProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
+
   return (
     <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-4 md:px-6 flex items-center justify-between sticky top-0 z-20">
       {/* Left: Mobile Nav Toggle & Search */}
@@ -53,13 +68,29 @@ export function AdminHeader({ onToggleMobileNav }: AdminHeaderProps) {
 
         <div className="flex items-center gap-2 pl-1">
           <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-primary font-bold text-xs">
-            A
+            {admin.name.charAt(0).toUpperCase()}
           </div>
           <div className="hidden lg:flex flex-col text-left">
-            <span className="text-xs font-semibold leading-none text-foreground">Admin Konstanta</span>
-            <span className="text-[10px] text-muted-foreground">admin@konstanta.edu</span>
+            <span className="text-xs font-semibold leading-none text-foreground">{admin.name}</span>
+            <span className="text-[10px] text-muted-foreground">{admin.email}</span>
           </div>
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-rose-400"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          aria-label="Keluar"
+          title="Keluar"
+        >
+          {isLoggingOut ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
+        </Button>
       </div>
     </header>
   );

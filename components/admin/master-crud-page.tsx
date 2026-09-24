@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Edit3, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
+import { Edit3, ExternalLink, LoaderCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,8 @@ interface MasterCrudPageProps<T extends { id: string }, F extends CrudFormValues
   createDisabledMessage?: string;
   renderExtraActions?: (record: T) => ReactNode;
   refreshKey?: string | number;
+  readOnly?: boolean;
+  sourceUrl?: string;
 }
 
 export function MasterCrudPage<T extends { id: string }, F extends CrudFormValues>({
@@ -96,6 +98,8 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
   createDisabledMessage,
   renderExtraActions,
   refreshKey,
+  readOnly = false,
+  sourceUrl,
 }: MasterCrudPageProps<T, F>) {
   const [records, setRecords] = useState<T[]>([]);
   const [search, setSearch] = useState("");
@@ -245,13 +249,30 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
           <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button size="sm" className="gap-2" onClick={showForm ? closeForm : openCreateForm}>
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? "Tutup Form" : `Tambah ${entityLabel}`}
-        </Button>
+        <div className="flex items-center gap-2">
+          {sourceUrl ? (
+            <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline" className="gap-2">
+                <ExternalLink className="h-4 w-4" /> Buka Google Sheet
+              </Button>
+            </a>
+          ) : null}
+          {!readOnly ? (
+            <Button size="sm" className="gap-2" onClick={showForm ? closeForm : openCreateForm}>
+              {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showForm ? "Tutup Form" : `Tambah ${entityLabel}`}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      {showForm ? (
+      {readOnly ? (
+        <div className="rounded-lg border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
+          Google Sheet adalah satu-satunya sumber data akademik. Edit data di Sheet, lalu jalankan sinkronisasi.
+        </div>
+      ) : null}
+
+      {showForm && !readOnly ? (
         <Card className="border-primary/30 bg-primary/[0.03]">
           <CardHeader className="pb-4">
             <CardTitle className="text-base">
@@ -470,8 +491,8 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
               ? "Ubah kata pencarian untuk melihat data lainnya."
               : `Tambahkan ${entityLabelLower} pertama untuk mulai menggunakan fitur ini.`
           }
-          actionLabel={records.length ? undefined : `Tambah ${entityLabel}`}
-          onAction={records.length ? undefined : openCreateForm}
+          actionLabel={readOnly || records.length ? undefined : `Tambah ${entityLabel}`}
+          onAction={readOnly || records.length ? undefined : openCreateForm}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/80 bg-card/40">
@@ -484,7 +505,7 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
                       {column.header}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-right font-semibold">Aksi</th>
+                  {!readOnly ? <th className="px-4 py-3 text-right font-semibold">Aksi</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -495,7 +516,7 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
                         {column.render(record)}
                       </td>
                     ))}
-                    <td className="px-4 py-3">
+                    {!readOnly ? <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         {renderExtraActions?.(record)}
                         <Button
@@ -524,7 +545,7 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
                           Hapus
                         </Button>
                       </div>
-                    </td>
+                    </td> : null}
                   </tr>
                 ))}
               </tbody>

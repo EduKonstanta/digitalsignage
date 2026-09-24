@@ -2,40 +2,44 @@
 
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Settings, FileSpreadsheet, History, KeyRound } from "lucide-react";
+import { Building2, DoorOpen, GraduationCap, BookOpen, FolderKanban, Users2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import GeneralSettingsPage from "./general/page";
-import SecuritySettingsPage from "./security/page";
-import IntegrationsPage from "../integrations/page";
-import ActivityLogsPage from "../activity-logs/page";
+import BranchesPage from "./branches/page";
+import RoomsPage from "./rooms/page";
+import TutorsPage from "./tutors/page";
+import SubjectsPage from "./subjects/page";
+import ProgramsPage from "./programs/page";
+import AcademicClassesPage from "./classes/page";
 
 const TABS = [
-  { key: "general", label: "Pengaturan Umum", icon: Settings, Component: GeneralSettingsPage },
-  { key: "security", label: "Keamanan Akun", icon: KeyRound, Component: SecuritySettingsPage },
-  { key: "integrations", label: "Google Sheets", icon: FileSpreadsheet, Component: IntegrationsPage },
-  { key: "activity-logs", label: "Log Aktivitas", icon: History, Component: ActivityLogsPage },
+  { key: "branches", label: "Cabang", icon: Building2, Component: BranchesPage },
+  { key: "rooms", label: "Ruangan", icon: DoorOpen, Component: RoomsPage },
+  { key: "tutors", label: "Tutor (KangGuru)", icon: GraduationCap, Component: TutorsPage },
+  { key: "subjects", label: "Mata Pelajaran", icon: BookOpen, Component: SubjectsPage },
+  { key: "programs", label: "Program", icon: FolderKanban, Component: ProgramsPage },
+  { key: "classes", label: "Rombel / Kelas", icon: Users2, Component: AcademicClassesPage },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-function SystemTabs() {
+function AcademicTabs() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = (searchParams.get("tab") as TabKey) || "general";
+  const activeTab = (searchParams.get("tab") as TabKey) || "branches";
   const active = TABS.find((tab) => tab.key === activeTab) ?? TABS[0];
   const ActiveComponent = active.Component;
 
   function selectTab(key: TabKey) {
-    router.replace(`/settings?tab=${key}`, { scroll: false });
+    router.replace(`/academic?tab=${key}`, { scroll: false });
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Sistem</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Data Master Akademik</h1>
         <p className="text-sm text-muted-foreground">
-          Pengaturan aplikasi, sumber data Google Sheets, dan riwayat aktivitas dalam satu halaman.
+          Semua data dasar sistem signage — cabang, ruangan, tutor, mata pelajaran, program, dan kelas — dalam satu halaman.
         </p>
       </div>
 
@@ -67,10 +71,10 @@ function SystemTabs() {
   );
 }
 
-export default function SystemHubPage() {
+export default function AcademicHubPage() {
   return (
     <Suspense fallback={null}>
-      <SystemTabs />
+      <AcademicTabs />
     </Suspense>
   );
 }

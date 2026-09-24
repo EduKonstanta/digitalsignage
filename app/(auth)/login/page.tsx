@@ -9,6 +9,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Lock, Mail, AlertCircle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+interface LoginApiResponse {
+  success: boolean;
+  data?: { id: string; name: string; email: string };
+  error?: { message?: string };
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -16,21 +22,30 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // Simulate login for phase 2 layout check
-    setTimeout(() => {
-      if (email === "admin@konstanta.edu" && password === "admin123") {
-        router.push("/dashboard");
-      } else {
-        setError("Email atau password tidak sesuai. Gunakan admin@konstanta.edu / admin123");
-        setLoading(false);
+    try {
+      const response = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = (await response.json()) as LoginApiResponse;
+
+      if (!response.ok || !body.success) {
+        throw new Error(body.error?.message ?? "Email atau password tidak sesuai.");
       }
-    }, 600);
-  };
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Gagal masuk. Coba lagi.");
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 relative overflow-hidden">
@@ -71,6 +86,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -91,6 +107,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
               </div>
             </div>
@@ -104,7 +121,7 @@ export default function LoginPage() {
 
         <CardFooter className="flex flex-col items-center border-t border-border/60 pt-4 text-center">
           <p className="text-[11px] text-muted-foreground">
-            Demo Credentials: <code className="text-primary font-mono">admin@konstanta.edu</code> / <code className="text-primary font-mono">admin123</code>
+            Hubungi Super Admin untuk mendapatkan akun akses.
           </p>
         </CardFooter>
       </Card>

@@ -238,3 +238,94 @@ body {
   background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 9999px;
 }
+
+/* 3D Spatial Design System Extensions */
+.perspective-1000 {
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+/* 3D Floating Glassmorphic Panel */
+.glass-3d-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 1.25rem;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.75) 0%,
+    rgba(30, 41, 59, 0.65) 50%,
+    rgba(10, 15, 30, 0.85) 100%
+  );
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(6, 182, 212, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px) saturate(160%);
+  transform-style: preserve-3d;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease;
+}
+
+.glass-3d-panel:hover {
+  box-shadow:
+    0 35px 60px -15px rgba(0, 0, 0, 0.75),
+    0 0 40px rgba(6, 182, 212, 0.18),
+    inset 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+
+/* 3D Active Glowing Item Extrusion */
+.active-3d-extrude {
+  transform: translateZ(24px) scale(1.02);
+  box-shadow:
+    0 20px 40px -10px rgba(6, 182, 212, 0.45),
+    0 0 30px rgba(6, 182, 212, 0.35),
+    inset 0 0 15px rgba(255, 255, 255, 0.4);
+  border-color: rgba(34, 211, 238, 0.6) !important;
+}
+
+/* 3D Interactive Isometric Kiosk Stage */
+.isometric-kiosk-stage {
+  transform: perspective(1200px) rotateX(12deg) rotateY(-8deg) rotateZ(2deg) scale(0.92);
+  transform-origin: center center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow:
+    -30px 50px 80px rgba(0, 0, 0, 0.8),
+    0 0 60px rgba(6, 182, 212, 0.25);
+  border-radius: 1.5rem;
+}
+
+.isometric-kiosk-stage:hover {
+  transform: perspective(1200px) rotateX(6deg) rotateY(-4deg) rotateZ(1deg) scale(0.95);
+}
+
+/* 3D Specular Light Shimmer Keyframe */
+@keyframes shimmer-3d {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-3d-overlay {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.12) 40%,
+    rgba(6, 182, 212, 0.18) 50%,
+    rgba(255, 255, 255, 0.12) 60%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-3d 8s infinite linear;
+}
