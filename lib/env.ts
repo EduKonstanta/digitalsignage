@@ -22,7 +22,6 @@ const envSchema = z.object({
   S3_PUBLIC_BASE_URL: z.string().optional(),
 
   ENCRYPTION_KEY: z.string().optional(),
-  CRON_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -42,5 +41,4 @@ export const env = envSchema.parse({
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
   S3_PUBLIC_BASE_URL: process.env.S3_PUBLIC_BASE_URL,
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-  CRON_SECRET: process.env.CRON_SECRET,
 });

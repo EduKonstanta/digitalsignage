@@ -8,14 +8,6 @@ generator client {
 
 // ==================== ENUMS ====================
 
-enum ScheduleManualStatus {
-  NONE
-  DELAYED
-  CANCELLED
-  MOVED_ROOM
-  ONLINE
-}
-
 enum ComputedScheduleStatus {
   SCHEDULED
   STARTING_SOON
@@ -79,13 +71,6 @@ enum EmergencySeverity {
   CRITICAL
 }
 
-enum SyncConflictPolicy {
-  EXTERNAL_WINS
-  INTERNAL_WINS
-  LAST_WRITE_WINS
-  REQUIRE_REVIEW
-}
-
 // ==================== IDENTITY & AUTH ====================
 
 model Admin {
@@ -127,123 +112,11 @@ model PasswordResetToken {
   admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
 
-// ==================== ACADEMIC MASTER ====================
-
-model Branch {
-  id        String    @id @default(cuid())
-  name      String
-  code      String    @unique
-  address   String?
-  timezone  String    @default("Asia/Jakarta")
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  rooms     Room[]
-  schedules Schedule[]
-  screens   Screen[]
-}
-
-model Room {
-  id        String   @id @default(cuid())
-  branchId  String
-  name      String
-  floor     Int      @default(1)
-  capacity  Int?
-  status    String   @default("AVAILABLE")
-  aliases   String   @default("[]")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  schedules Schedule[]
-  screens   Screen[]
-}
-
-model Tutor {
-  id          String   @id @default(cuid())
-  name        String
-  displayName String?
-  title       String?
-  photoUrl    String?
-  aliases     String   @default("[]")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  schedules Schedule[]
-}
-
-model Program {
-  id        String   @id @default(cuid())
-  name      String
-  level     String?
-  color     String   @default("#3B82F6")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  classes   Class[]
-  schedules Schedule[]
-}
-
-model Class {
-  id           String   @id @default(cuid())
-  programId    String
-  name         String
-  academicYear String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  program   Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
-  schedules Schedule[]
-}
-
-model Subject {
-  id        String   @id @default(cuid())
-  name      String
-  shortName String
-  icon      String?
-  aliases   String   @default("[]")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  schedules Schedule[]
-}
-
-model Schedule {
-  id              String               @id @default(cuid())
-  branchId        String
-  programId       String
-  classId         String
-  subjectId       String
-  tutorId         String
-  roomId          String
-  startAt         DateTime
-  endAt           DateTime
-  manualStatus    ScheduleManualStatus @default(NONE)
-  notes           String?
-  sourceType      String               @default("MANUAL")
-  sourceReference String?
-  sourceVersion   Int                  @default(1)
-  publishedAt     DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  archivedAt      DateTime?
-
-  branch  Branch  @relation(fields: [branchId], references: [id])
-  program Program @relation(fields: [programId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
-  tutor   Tutor   @relation(fields: [tutorId], references: [id])
-  room    Room    @relation(fields: [roomId], references: [id])
-
-  @@index([branchId, startAt, endAt])
-  @@index([roomId, startAt])
-}
-
 // ==================== CONTENT MANAGEMENT ====================
+// Branch, Room, Tutor, Program, Class, Subject, and Schedule are no longer
+// Prisma models: they're read live from the locked Google Sheet on every
+// request (see lib/google-sheets/live-data.ts) instead of being synced into
+// this database.
 
 model Announcement {
   id          String        @id @default(cuid())
@@ -376,8 +249,8 @@ model Screen {
   pairingCodeHash  String?
   pairingExpiresAt DateTime?
   name             String
-  branchId         String
-  roomId           String?
+  branchId         String // Google Sheets branch id (live, not a Prisma relation)
+  roomId           String? // Google Sheets room id (live, not a Prisma relation)
   floor            Int          @default(1)
   resolution       String       @default("1920x1080")
   orientation      String       @default("LANDSCAPE")
@@ -392,8 +265,6 @@ model Screen {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  branch     Branch             @relation(fields: [branchId], references: [id])
-  room       Room?              @relation(fields: [roomId], references: [id])
   playlist   Playlist?          @relation(fields: [playlistId], references: [id])
   groups     ScreenGroupMember[]
   heartbeats DeviceHeartbeat[]
@@ -475,4 +346,51 @@ model SystemSetting {
   value       String
   updatedById String?
   updatedAt   DateTime @updatedAt
+}
+
+// ==================== STUDENTS & ATTENDANCE ====================
+
+model Student {
+  id           String          @id @default(cuid())
+  nis          String          @unique
+  name         String
+  cardUid      String?         @unique
+  className    String
+  voiceGender  String          @default("AUTO") // AUTO | MALE | FEMALE
+  branchId     String?
+  parentName   String?
+  parentPhone  String?
+  studentPhone String?
+  photoUrl     String?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  attendances  AttendanceLog[]
+
+  @@index([cardUid])
+  @@index([nis])
+}
+
+model AttendanceLog {
+  id               String    @id @default(cuid())
+  studentId        String
+  studentName      String
+  className        String
+  cardUid          String?
+  type             String    @default("CHECK_IN") // CHECK_IN | CHECK_OUT
+  timestamp        DateTime  @default(now())
+  deviceId         String?
+  fonnteStatus     String    @default("DISABLED") // QUEUED | SENT | DELIVERED | READ | FAILED | DISABLED | SKIPPED
+  fonnteMessageId  String?
+  fonnteState      String?
+  fonnteResponse   String?
+  fonnteUpdatedAt  DateTime?
+  createdAt        DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@index([fonnteMessageId])
 }
