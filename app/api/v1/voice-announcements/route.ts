@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 const voiceSchema = z.object({
   text: z.string().min(3, "Teks suara wajib diisi"),
@@ -19,6 +20,9 @@ const voiceSchema = z.object({
 
 export async function GET() {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const voices = await db.voiceAnnouncement.findMany({
       include: { _count: { select: { logs: true } } },
       orderBy: { scheduledAt: "desc" },
@@ -31,12 +35,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const validated = voiceSchema.parse(await req.json());
     const voice = await db.voiceAnnouncement.create({
       data: {
         ...validated,
         scheduledAt: new Date(validated.scheduledAt),
-        createdById: "admin",
+        createdById: admin.id,
       },
     });
     return apiSuccess(voice, undefined, 201);

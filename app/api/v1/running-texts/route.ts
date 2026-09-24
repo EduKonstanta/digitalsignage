@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 const runningTextSchema = z.object({
   text: z.string().min(3, "Teks ticker wajib diisi"),
@@ -15,6 +16,9 @@ const runningTextSchema = z.object({
 
 export async function GET() {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const tickers = await db.runningText.findMany({
       orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
     });
@@ -26,6 +30,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const validated = runningTextSchema.parse(await req.json());
     const startsAt = new Date(validated.startsAt);
     const endsAt = new Date(validated.endsAt);
@@ -37,7 +44,7 @@ export async function POST(req: NextRequest) {
         ...validated,
         startsAt,
         endsAt,
-        createdById: "admin",
+        createdById: admin.id,
       },
     });
     return apiSuccess(ticker, undefined, 201);

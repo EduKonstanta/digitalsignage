@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { CalendarClock, MoonStar, Trophy } from "lucide-react";
+import { CalendarClock, MoonStar, Trophy, Sparkles, Award } from "lucide-react";
+import { use3DTilt } from "@/lib/use-3d-tilt";
 
 interface SignageWidgetsProps {
   now: Date | null;
   prayerTimes: Record<string, string> | null;
+  eventLabel?: string | null;
+  eventDate?: string | null;
 }
 
 const PRAYERS = [
@@ -42,10 +45,22 @@ function nextPrayer(now: Date | null, timings: Record<string, string> | null) {
   return fajr ? { ...PRAYERS[0], time: fajr } : null;
 }
 
-function countdown(now: Date | null) {
-  if (!now) return { days: "--", event: "UTBK" };
+// Nama acara & tanggal diatur admin di Sistem > Pengaturan Umum. Kalau kosong, otomatis "UTBK" 21 April.
+function countdown(now: Date | null, eventLabel?: string | null, eventDateStr?: string | null) {
+  if (!now) return { days: "--", event: eventLabel || "UTBK" };
+
+  if (eventDateStr) {
+    const target = new Date(`${eventDateStr}T00:00:00+07:00`);
+    if (!Number.isNaN(target.getTime())) {
+      return {
+        days: Math.max(0, Math.ceil((target.getTime() - now.getTime()) / 86_400_000)),
+        event: eventLabel || "Tanggal Penting",
+      };
+    }
+  }
+
   let year = Number(
-    new Intl.DateTimeFormat("en", { timeZone: "Asia/Jakarta", year: "numeric" }).format(now),
+    new Intl.DateTimeFormat("en", { timeZone: "Asia/Jakarta", year: "numeric" }).format(now)
   );
   let target = new Date(`${year}-04-21T00:00:00+07:00`);
   if (target.getTime() < now.getTime()) {
@@ -54,61 +69,91 @@ function countdown(now: Date | null) {
   }
   return {
     days: Math.max(0, Math.ceil((target.getTime() - now.getTime()) / 86_400_000)),
-    event: `UTBK ${year}`,
+    event: eventLabel || `UTBK ${year}`,
   };
 }
 
-export function SignageWidgets({ now, prayerTimes }: SignageWidgetsProps) {
+export function SignageWidgets({ now, prayerTimes, eventLabel, eventDate }: SignageWidgetsProps) {
   const prayer = nextPrayer(now, prayerTimes);
-  const event = countdown(now);
+  const event = countdown(now, eventLabel, eventDate);
+
+  const topKenzTilt = use3DTilt({ maxTilt: 6, scale: 1.01 });
+  const utbkTilt = use3DTilt({ maxTilt: 6, scale: 1.01 });
+  const prayerTilt = use3DTilt({ maxTilt: 6, scale: 1.01 });
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1.15fr)_minmax(0,.85fr)] gap-3">
-      <div className="signage-panel relative flex min-h-0 items-center overflow-hidden border-amber-300/20 bg-[linear-gradient(120deg,rgba(0,0,0,.65),rgba(212,175,55,.11))] p-[clamp(.65rem,1vw,1rem)]">
-        <Trophy className="absolute -right-5 -top-5 h-28 w-28 rotate-12 text-amber-300/10" />
-        <div className="relative h-[clamp(3.5rem,5.2vw,6rem)] w-[clamp(3.5rem,5.2vw,6rem)] shrink-0 overflow-hidden rounded-full border-2 border-amber-200/70 bg-white shadow-[0_0_24px_rgba(251,191,36,.2)]">
+    <section className="flex h-full min-h-0 flex-col gap-2.5 preserve-3d">
+      {/* Top Kenz Banner Card */}
+      <div
+        onMouseMove={topKenzTilt.handleMouseMove}
+        onMouseLeave={topKenzTilt.handleMouseLeave}
+        style={topKenzTilt.tiltStyle}
+        className="glass-3d-panel relative flex shrink-0 items-center overflow-hidden border-amber-400/40 bg-gradient-to-r from-amber-950/50 via-slate-900/90 to-amber-950/40 p-3 lg:p-3.5 shadow-md preserve-3d"
+      >
+        <div style={topKenzTilt.glareStyle} className="absolute inset-0 rounded-2xl pointer-events-none" />
+        <Trophy className="absolute -right-3 -top-3 h-24 w-24 rotate-12 text-amber-400/15 pointer-events-none" />
+
+        <div className="relative h-12 w-12 lg:h-14 lg:w-14 shrink-0 overflow-hidden rounded-full border-2 border-amber-300/80 bg-white shadow-[0_0_20px_rgba(251,191,36,0.4)]">
           <Image
             src="/brand/konstanta-mark.jpg"
-            alt=""
+            alt="Konstanta Education"
             fill
-            sizes="96px"
+            sizes="56px"
             className="object-cover"
           />
         </div>
-        <div className="relative ml-3 min-w-0">
-          <p className="text-[8px] font-black uppercase tracking-[0.24em] text-amber-300">
-            Top Kenz
-          </p>
-          <p className="mt-1 truncate text-[clamp(.9rem,1.25vw,1.35rem)] font-black leading-none text-white">
+
+        <div className="relative ml-3 min-w-0 flex-1 preserve-3d">
+          <div className="flex items-center gap-1 text-[9px] lg:text-[10px] font-black uppercase tracking-[0.24em] text-amber-300">
+            <Award className="h-3 w-3 text-amber-400" /> Top Kenz Academy
+          </div>
+          <p className="truncate text-base lg:text-lg font-black leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
             Konstanta Education
           </p>
-          <div className="my-2 h-px w-12 bg-cyan-300/60" />
-          <p className="truncate text-[clamp(.62rem,.8vw,.82rem)] font-bold uppercase tracking-wide text-cyan-300">
-            Prestasi · Integritas · Inovasi
+          <p className="mt-0.5 truncate text-[10px] lg:text-xs font-extrabold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-cyan-400" /> Prestasi • Integritas • Inovasi
           </p>
         </div>
       </div>
 
-      <div className="grid min-h-0 grid-cols-2 gap-3">
-        <div className="signage-panel flex min-h-0 flex-col items-center justify-center border-red-400/20 bg-[linear-gradient(180deg,rgba(127,29,29,.25),rgba(0,0,0,.45))] p-2 text-center">
-          <div className="flex items-center gap-1 text-red-300/80">
-            <CalendarClock className="h-3 w-3" />
-            <span className="text-[8px] font-black uppercase tracking-[0.16em]">{event.event}</span>
+      {/* Grid 2 Column Widgets: UTBK & Prayer */}
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 preserve-3d">
+        {/* Countdown Tanggal Penting 3D Widget */}
+        <div
+          onMouseMove={utbkTilt.handleMouseMove}
+          onMouseLeave={utbkTilt.handleMouseLeave}
+          style={utbkTilt.tiltStyle}
+          className="glass-3d-panel relative flex min-h-0 flex-col items-center justify-center border-red-500/40 bg-gradient-to-b from-red-950/60 via-slate-900/90 to-red-950/40 p-2.5 text-center shadow-md preserve-3d"
+        >
+          <div style={utbkTilt.glareStyle} className="absolute inset-0 rounded-2xl pointer-events-none" />
+          <div className="flex items-center gap-1.5 text-red-300 font-black text-sm lg:text-lg uppercase tracking-wider">
+            <CalendarClock className="h-5 w-5 lg:h-6 lg:w-6 text-red-400 animate-pulse shrink-0" />
+            <span className="truncate">{event.event}</span>
           </div>
-          <p className="mt-1 text-[clamp(1.5rem,2.7vw,3rem)] font-black leading-none text-red-400 [text-shadow:0_0_14px_rgba(248,113,113,.25)]">
+          <p className="mt-1 font-mono text-4xl lg:text-6xl font-black leading-none text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.8)]">
             H-{event.days}
           </p>
+          <span className="mt-1 text-xs lg:text-sm font-black uppercase text-slate-300 tracking-wider">
+            Hari Lagi
+          </span>
         </div>
 
-        <div className="signage-panel flex min-h-0 flex-col items-center justify-center border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,145,178,.18),rgba(0,0,0,.45))] p-2 text-center">
-          <div className="flex items-center gap-1 text-cyan-300/80">
-            <MoonStar className="h-3 w-3" />
-            <span className="text-[8px] font-black uppercase tracking-[0.14em]">Salat Terdekat</span>
+        {/* Next Prayer 3D Widget */}
+        <div
+          onMouseMove={prayerTilt.handleMouseMove}
+          onMouseLeave={prayerTilt.handleMouseLeave}
+          style={prayerTilt.tiltStyle}
+          className="glass-3d-panel relative flex min-h-0 flex-col items-center justify-center border-cyan-400/40 bg-gradient-to-b from-cyan-950/60 via-slate-900/90 to-cyan-950/40 p-2.5 text-center shadow-md preserve-3d"
+        >
+          <div style={prayerTilt.glareStyle} className="absolute inset-0 rounded-2xl pointer-events-none" />
+          <div className="flex items-center gap-1.5 text-cyan-300 font-black text-sm lg:text-lg uppercase tracking-wider">
+            <MoonStar className="h-5 w-5 lg:h-6 lg:w-6 text-cyan-400 shrink-0" />
+            <span className="truncate">Salat Terdekat</span>
           </div>
-          <p className="mt-1 text-[clamp(.7rem,.9vw,.95rem)] font-bold text-slate-300">
-            {prayer?.label ?? "Menunggu data"}
+          <p className="mt-1 text-lg lg:text-2xl font-black uppercase text-amber-300 tracking-wider">
+            {prayer?.label ?? "Menunggu"}
           </p>
-          <p className="font-mono text-[clamp(1.15rem,1.8vw,2rem)] font-black leading-none text-cyan-300 [text-shadow:0_0_12px_rgba(34,211,238,.25)]">
+          <p className="mt-0.5 font-mono text-3xl lg:text-5xl font-black leading-none text-cyan-300 drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]">
             {prayer?.time ?? "--:--"}
           </p>
         </div>

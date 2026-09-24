@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 const updateSchema = z.object({
   title: z.string().min(3),
@@ -22,6 +24,9 @@ interface RouteContext {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const validated = updateSchema.parse(await req.json());
     const current = await db.announcement.findUnique({ where: { id } });
@@ -43,6 +48,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           validated.status === "PUBLISHED" ? current.publishedAt ?? new Date() : null,
       },
     });
+    await logActivity({
+      actorId: admin.id,
+      action: "UPDATE_ANNOUNCEMENT",
+      entityType: "Announcement",
+      entityId: id,
+      before: current,
+      after: announcement,
+    });
     return apiSuccess(announcement);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -54,11 +67,22 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
-    if (!(await db.announcement.findUnique({ where: { id } }))) {
+    const before = await db.announcement.findUnique({ where: { id } });
+    if (!before) {
       return apiError("Pengumuman tidak ditemukan", "ANNOUNCEMENT_NOT_FOUND", 404);
     }
     await db.announcement.delete({ where: { id } });
+    await logActivity({
+      actorId: admin.id,
+      action: "DELETE_ANNOUNCEMENT",
+      entityType: "Announcement",
+      entityId: id,
+      before,
+    });
     return apiSuccess({ id });
   } catch (error) {
     return apiError("Gagal menghapus pengumuman", "ANNOUNCEMENT_DELETE_ERROR", 500, error);

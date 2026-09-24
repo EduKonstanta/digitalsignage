@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
 
 const itemSchema = z.object({
   contentType: z.enum([
@@ -28,11 +30,17 @@ interface RouteContext {
 
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const { items } = itemsSchema.parse(await req.json());
     if (!(await db.playlist.findUnique({ where: { id } }))) {
       return apiError("Playlist tidak ditemukan", "PLAYLIST_NOT_FOUND", 404);
     }
+
+    const hasScheduleItems = items.some((item) => item.contentType === "SCHEDULE_LAYOUT");
+    const live = hasScheduleItems ? await getLiveAcademicData() : null;
 
     for (const item of items) {
       if (item.startsAt && item.endsAt && new Date(item.endsAt) <= new Date(item.startsAt)) {
@@ -46,6 +54,12 @@ export async function PUT(req: NextRequest, context: RouteContext) {
         const exists = await db.mediaAsset.findUnique({ where: { id: item.contentId } });
         if (!exists) return apiError("Media pada playlist tidak ditemukan", "CONTENT_NOT_FOUND", 400);
       }
+      if (item.contentType === "SCHEDULE_LAYOUT") {
+        const exists = live?.schedules.some((schedule) => schedule.id === item.contentId);
+        if (!exists) return apiError("Jadwal pada playlist tidak ditemukan", "CONTENT_NOT_FOUND", 400);
+      }
+      // COUNTDOWN, WELCOME, EXAMINATION have no backing table (they're
+      // built-in layout templates), so contentId is intentionally unchecked.
     }
 
     const playlist = await db.$transaction(async (tx) => {

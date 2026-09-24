@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
+import { Prisma } from "@prisma/client";
 
 const announcementSchema = z.object({
   title: z.string().min(3, "Judul minimal 3 karakter"),
@@ -20,25 +23,21 @@ function slugify(value: string) {
   return value
     .toLocaleLowerCase("id-ID")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 70);
 }
 
-async function uniqueSlug(title: string) {
-  const base = slugify(title) || "pengumuman";
-  let slug = base;
-  let sequence = 2;
-  while (await db.announcement.findUnique({ where: { slug } })) {
-    slug = `${base}-${sequence}`;
-    sequence += 1;
-  }
-  return slug;
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
 export async function GET() {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const announcements = await db.announcement.findMany({
       where: { archivedAt: null },
       orderBy: [{ priority: "desc" }, { startsAt: "desc" }],
@@ -51,6 +50,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const validated = announcementSchema.parse(await req.json());
     const startsAt = new Date(validated.startsAt);
     const endsAt = new Date(validated.endsAt);
@@ -58,17 +60,40 @@ export async function POST(req: NextRequest) {
       return apiError("Waktu selesai harus setelah waktu mulai", "INVALID_TIME_RANGE", 400);
     }
 
-    const announcement = await db.announcement.create({
-      data: {
-        ...validated,
-        slug: await uniqueSlug(validated.title),
-        startsAt,
-        endsAt,
-        createdById: "admin",
-        publishedAt: validated.status === "PUBLISHED" ? new Date() : null,
-      },
-    });
-    return apiSuccess(announcement, undefined, 201);
+    const base = slugify(validated.title) || "pengumuman";
+
+    // Retry on the DB's unique-constraint response instead of check-then-create,
+    // which is safe under concurrent requests for the same title.
+    let attempt = 0;
+    for (;;) {
+      const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
+      try {
+        const announcement = await db.announcement.create({
+          data: {
+            ...validated,
+            slug,
+            startsAt,
+            endsAt,
+            createdById: admin.id,
+            publishedAt: validated.status === "PUBLISHED" ? new Date() : null,
+          },
+        });
+        await logActivity({
+          actorId: admin.id,
+          action: "CREATE_ANNOUNCEMENT",
+          entityType: "Announcement",
+          entityId: announcement.id,
+          after: announcement,
+        });
+        return apiSuccess(announcement, undefined, 201);
+      } catch (createError) {
+        if (isUniqueConstraintError(createError) && attempt < 20) {
+          attempt += 1;
+          continue;
+        }
+        throw createError;
+      }
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);

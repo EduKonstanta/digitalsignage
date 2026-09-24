@@ -37,29 +37,29 @@ export function SignageTicker({ messages, now }: SignageTickerProps) {
   const group = (suffix: string) => (
     <div className="flex shrink-0 items-center" aria-hidden={suffix === "copy"}>
       {items.map((message) => (
-        <div key={`${message.id}-${suffix}`} className="mx-8 inline-flex items-center gap-2">
+        <div key={`${message.id}-${suffix}`} className="mx-10 inline-flex items-center gap-3">
           {message.priority >= 3 ? (
-            <AlertCircle className="h-4 w-4 animate-pulse text-red-400" />
+            <AlertCircle className="h-6 w-6 animate-pulse text-red-400" />
           ) : null}
           <span
-            className={`text-[clamp(.72rem,1.05vw,1.2rem)] font-bold uppercase tracking-[0.06em] ${
+            className={`text-[clamp(1.2rem,1.8vw,2.5rem)] font-black uppercase tracking-[0.06em] drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] ${
               message.priority >= 3 ? "text-red-300" : "text-white"
             }`}
           >
             {message.text}
           </span>
-          <span className="ml-5 text-cyan-300/50">///</span>
+          <span className="ml-8 text-cyan-400 font-black text-[clamp(1.2rem,1.8vw,2.5rem)]">///</span>
         </div>
       ))}
     </div>
   );
 
   return (
-    <footer className="relative z-30 flex h-[5vh] min-h-11 items-center overflow-hidden border-t border-amber-300/50 bg-black shadow-[0_-10px_30px_rgba(0,0,0,.45)]">
-      <div className="z-10 flex h-full shrink-0 items-center gap-2 bg-amber-300 px-[clamp(.8rem,1.5vw,1.5rem)] text-slate-950 shadow-[8px_0_22px_rgba(0,0,0,.45)]">
-        <Megaphone className="h-4 w-4" />
-        <span className="text-[clamp(.65rem,.8vw,.9rem)] font-black uppercase tracking-[0.18em]">
-          Kepoin
+    <footer className="relative z-30 flex h-[6.5vh] min-h-16 items-center overflow-hidden border-t-2 border-amber-300/70 bg-black shadow-[0_-10px_35px_rgba(0,0,0,0.7)] shrink-0">
+      <div className="z-10 flex h-full shrink-0 items-center gap-2.5 bg-amber-400 px-[clamp(1.2rem,2vw,2.2rem)] text-slate-950 shadow-[10px_0_25px_rgba(0,0,0,0.6)]">
+        <Megaphone className="h-5 w-5 text-slate-950" />
+        <span className="text-[clamp(1rem,1.3vw,1.8rem)] font-black uppercase tracking-[0.2em]">
+          Info Kenz
         </span>
       </div>
       <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap">

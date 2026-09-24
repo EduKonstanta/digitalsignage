@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 const playlistSchema = z.object({
   name: z.string().min(3, "Nama playlist minimal 3 karakter"),
@@ -12,6 +14,9 @@ const playlistSchema = z.object({
 
 export async function GET() {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const playlists = await db.playlist.findMany({
       include: {
         items: { orderBy: { sequence: "asc" } },
@@ -27,13 +32,23 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const validated = playlistSchema.parse(await req.json());
     const playlist = await db.playlist.create({
-      data: { ...validated, createdById: "admin" },
+      data: { ...validated, createdById: admin.id },
       include: {
         items: true,
         _count: { select: { items: true, screens: true } },
       },
+    });
+    await logActivity({
+      actorId: admin.id,
+      action: "CREATE_PLAYLIST",
+      entityType: "Playlist",
+      entityId: playlist.id,
+      after: playlist,
     });
     return apiSuccess(playlist, undefined, 201);
   } catch (error) {

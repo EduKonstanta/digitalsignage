@@ -4,6 +4,10 @@ const TIKTOK_RE = /tiktok\.com\/@[\w.-]+\/video\/(\d+)/i;
 
 export type EmbedProvider = "YOUTUBE" | "INSTAGRAM" | "TIKTOK";
 
+export interface EmbedOptions {
+  muted?: boolean;
+}
+
 export const EMBED_PROVIDER_LABEL: Record<EmbedProvider, string> = {
   YOUTUBE: "YouTube",
   INSTAGRAM: "Instagram",
@@ -32,12 +36,12 @@ export function getTiktokVideoId(url: string): string | null {
 }
 
 /** Builds the iframe src for a known embed provider, or null if the URL doesn't match that provider. */
-export function buildEmbedSrc(provider: string, url: string): string | null {
+export function buildEmbedSrc(provider: string, url: string, options: EmbedOptions = {}): string | null {
   switch (provider) {
     case "YOUTUBE": {
       const id = getYoutubeId(url);
       return id
-        ? `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&loop=1&playlist=${id}&rel=0`
+        ? `https://www.youtube.com/embed/${id}?autoplay=1&mute=${options.muted === false ? 0 : 1}&controls=0&loop=1&playlist=${id}&rel=0&enablejsapi=1`
         : null;
     }
     case "INSTAGRAM": {
@@ -58,10 +62,14 @@ export function buildEmbedSrc(provider: string, url: string): string | null {
  * then falls back to sniffing the URL in case older rows were saved without an
  * explicit YOUTUBE/INSTAGRAM/TIKTOK mediaType.
  */
-export function resolveEmbedSrc(mediaType: string, url: string): string | null {
+export function resolveEmbedSrc(
+  mediaType: string,
+  url: string,
+  options: EmbedOptions = {},
+): string | null {
   if (!url) return null;
-  const direct = buildEmbedSrc(mediaType, url);
+  const direct = buildEmbedSrc(mediaType, url, options);
   if (direct) return direct;
   const provider = detectEmbedProvider(url);
-  return provider ? buildEmbedSrc(provider, url) : null;
+  return provider ? buildEmbedSrc(provider, url, options) : null;
 }

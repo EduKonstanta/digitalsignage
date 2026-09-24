@@ -66,6 +66,19 @@ export interface DisplayEmergency {
   voiceEnabled: boolean;
 }
 
+export interface DisplayWidgetsConfig {
+  /** Nama aplikasi/lembaga yang tampil di header TV. */
+  appName: string;
+  /** Nama cabang yang tampil di header TV. */
+  branchName: string;
+  /** Nama acara/ujian untuk widget countdown (mis. "Ujian TKA"). Kosong = otomatis "UTBK <tahun>". */
+  eventLabel: string | null;
+  /** Tanggal target countdown (YYYY-MM-DD). Kosong = otomatis 21 April tahun berjalan/berikutnya. */
+  eventDate: string | null;
+  /** Kota untuk jadwal sholat, sesuai API Aladhan.com (mis. "Jakarta"). */
+  prayerCity: string;
+}
+
 export interface DisplayPayload {
   screen: {
     name: string;
@@ -78,5 +91,6 @@ export interface DisplayPayload {
   tickers: DisplayTicker[];
   voices: DisplayVoice[];
   emergency: DisplayEmergency | null;
+  widgets: DisplayWidgetsConfig;
   generatedAt: string;
 }

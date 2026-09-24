@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 const mediaSchema = z
   .object({
@@ -35,6 +37,9 @@ const mediaSchema = z
 
 export async function GET() {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const media = await db.mediaAsset.findMany({ orderBy: { updatedAt: "desc" } });
     return apiSuccess(media);
   } catch (error) {
@@ -44,9 +49,19 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const validated = mediaSchema.parse(await req.json());
     const media = await db.mediaAsset.create({
       data: { ...validated, tags: JSON.stringify(validated.tags) },
+    });
+    await logActivity({
+      actorId: admin.id,
+      action: "CREATE_MEDIA",
+      entityType: "MediaAsset",
+      entityId: media.id,
+      after: media,
     });
     return apiSuccess(media, undefined, 201);
   } catch (error) {

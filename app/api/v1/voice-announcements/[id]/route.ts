@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 
 const updateSchema = z.object({
   text: z.string().min(3),
@@ -23,6 +24,9 @@ interface RouteContext {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const validated = updateSchema.parse(await req.json());
     if (!(await db.voiceAnnouncement.findUnique({ where: { id } }))) {
@@ -44,6 +48,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     if (!(await db.voiceAnnouncement.findUnique({ where: { id } }))) {
       return apiError("Informasi suara tidak ditemukan", "VOICE_NOT_FOUND", 404);

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 const playlistSchema = z.object({
   name: z.string().min(3, "Nama playlist minimal 3 karakter"),
@@ -16,9 +18,13 @@ interface RouteContext {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const validated = playlistSchema.parse(await req.json());
-    if (!(await db.playlist.findUnique({ where: { id } }))) {
+    const before = await db.playlist.findUnique({ where: { id } });
+    if (!before) {
       return apiError("Playlist tidak ditemukan", "PLAYLIST_NOT_FOUND", 404);
     }
     const playlist = await db.playlist.update({
@@ -28,6 +34,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         items: { orderBy: { sequence: "asc" } },
         _count: { select: { items: true, screens: true } },
       },
+    });
+    await logActivity({
+      actorId: admin.id,
+      action: "UPDATE_PLAYLIST",
+      entityType: "Playlist",
+      entityId: id,
+      before,
+      after: playlist,
     });
     return apiSuccess(playlist);
   } catch (error) {
@@ -40,6 +54,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const playlist = await db.playlist.findUnique({
       where: { id },
@@ -56,6 +73,13 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       );
     }
     await db.playlist.delete({ where: { id } });
+    await logActivity({
+      actorId: admin.id,
+      action: "DELETE_PLAYLIST",
+      entityType: "Playlist",
+      entityId: id,
+      before: playlist,
+    });
     return apiSuccess({ id });
   } catch (error) {
     return apiError("Gagal menghapus playlist", "PLAYLIST_DELETE_ERROR", 500, error);

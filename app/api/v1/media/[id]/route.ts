@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/activity-log";
 
 const mediaUpdateSchema = z
   .object({
@@ -39,14 +41,26 @@ interface RouteContext {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
     const validated = mediaUpdateSchema.parse(await req.json());
-    if (!(await db.mediaAsset.findUnique({ where: { id } }))) {
+    const before = await db.mediaAsset.findUnique({ where: { id } });
+    if (!before) {
       return apiError("Media tidak ditemukan", "MEDIA_NOT_FOUND", 404);
     }
     const media = await db.mediaAsset.update({
       where: { id },
       data: { ...validated, tags: JSON.stringify(validated.tags) },
+    });
+    await logActivity({
+      actorId: admin.id,
+      action: "UPDATE_MEDIA",
+      entityType: "MediaAsset",
+      entityId: id,
+      before,
+      after: media,
     });
     return apiSuccess(media);
   } catch (error) {
@@ -59,8 +73,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) return apiError("Unauthorized", "UNAUTHORIZED", 401);
+
     const { id } = await context.params;
-    if (!(await db.mediaAsset.findUnique({ where: { id } }))) {
+    const before = await db.mediaAsset.findUnique({ where: { id } });
+    if (!before) {
       return apiError("Media tidak ditemukan", "MEDIA_NOT_FOUND", 404);
     }
     const playlistUsage = await db.playlistItem.count({ where: { contentId: id } });
@@ -72,6 +90,13 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       );
     }
     await db.mediaAsset.delete({ where: { id } });
+    await logActivity({
+      actorId: admin.id,
+      action: "DELETE_MEDIA",
+      entityType: "MediaAsset",
+      entityId: id,
+      before,
+    });
     return apiSuccess({ id });
   } catch (error) {
     return apiError("Gagal menghapus media", "MEDIA_DELETE_ERROR", 500, error);
