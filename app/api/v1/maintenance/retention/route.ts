@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { hashToken, requireAdmin } from "@/lib/auth";
 import { runRetentionCleanup } from "@/lib/retention";
+import { readSecret } from "@/lib/secret-config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,7 +26,7 @@ function secretMatches(supplied: string | null, expected: string) {
  * terbuka — pola yang sama dengan webhook Fonnte.
  */
 async function handle(req: NextRequest) {
-  const expectedSecret = process.env.CRON_SECRET?.trim();
+  const expectedSecret = readSecret("CRON_SECRET");
   const authorization = req.headers.get("authorization");
   const bearer = authorization?.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length).trim()

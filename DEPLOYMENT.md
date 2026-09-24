@@ -120,15 +120,33 @@ vercel teams list
 vercel link --scope konstanta-education --project digitalsignage
 vercel env add TURSO_DATABASE_URL production --sensitive --scope konstanta-education
 vercel env add TURSO_AUTH_TOKEN production --sensitive --scope konstanta-education
-vercel env add AUTH_SECRET production --sensitive --scope konstanta-education
-vercel env add APP_URL production --scope konstanta-education
+vercel env add ATTENDANCE_DEVICE_TOKEN production --sensitive --scope konstanta-education
+vercel env add CRON_SECRET production --sensitive --scope konstanta-education
 ```
 
-Masukkan nilai masing-masing saat diminta. `APP_URL` harus berisi URL production
-lengkap, misalnya `https://digitalsignage.example.com`.
+Masukkan nilai masing-masing saat diminta. Nilai acak dibuat dengan:
 
-Tambahkan variable integrasi lain dari `.env.example` jika fitur tersebut
-digunakan.
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Empat variable di atas adalah yang minimum. Tambahkan berikut ini bila
+notifikasi WhatsApp dipakai:
+
+```powershell
+vercel env add FONNTE_TOKEN production --sensitive --scope konstanta-education
+vercel env add FONNTE_ENABLED production --scope konstanta-education
+vercel env add FONNTE_WEBHOOK_SECRET production --sensitive --scope konstanta-education
+```
+
+`GOOGLE_SERVICE_ACCOUNT_JSON` bersifat opsional; tanpa itu data akademik dibaca
+lewat endpoint CSV publik Sheet.
+
+Variable `SEED_ADMIN_*` **tidak** perlu dipasang di Vercel — hanya skrip seed
+yang membacanya, bukan aplikasi yang berjalan.
+
+Environment variable yang baru ditambahkan tidak berlaku pada deployment yang
+sudah berjalan; jalankan deploy ulang setelah mengisinya.
 
 ### 3. Preview dan production
 

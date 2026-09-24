@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest } from "next/server";
 import { hashToken } from "@/lib/auth";
+import { readSecret } from "@/lib/secret-config";
 
 /**
  * Perbandingan token memakai timingSafeEqual atas hash SHA-256 keduanya,
@@ -21,7 +22,7 @@ function tokenMatches(actual: string | null, expected: string) {
  * ditolak, jadi lupa mengisi env var tidak lagi membuat endpoint terbuka.
  */
 export function isAuthorizedAttendanceDevice(req: NextRequest) {
-  const expected = process.env.ATTENDANCE_DEVICE_TOKEN?.trim();
+  const expected = readSecret("ATTENDANCE_DEVICE_TOKEN");
 
   if (!expected) {
     return process.env.NODE_ENV === "development";

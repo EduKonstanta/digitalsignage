@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { hashToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readSecret } from "@/lib/secret-config";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ function secretMatches(supplied: string | null, expected: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const expectedSecret = process.env.FONNTE_WEBHOOK_SECRET?.trim();
+    const expectedSecret = readSecret("FONNTE_WEBHOOK_SECRET");
     const suppliedSecret =
       req.headers.get("x-webhook-secret") || new URL(req.url).searchParams.get("secret");
 
