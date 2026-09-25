@@ -45,6 +45,32 @@ Script akan memverifikasi remote GitHub, akses team Vercel, environment wajib,
 dependency, type-check, test, Prisma Client, dan production build sebelum
 menjalankan `vercel deploy --prod`.
 
+### Tombol deploy di GitHub (tanpa auto-deploy)
+
+Commit dan push **tidak** lagi men-deploy otomatis: `vercel.json` memuat
+`git.deploymentEnabled: false`. Deploy hanya terjadi saat tombol ditekan:
+
+1. Buka `https://github.com/EduKonstanta/digitalsignage/actions` lalu pilih
+   workflow **Deploy Manual**.
+2. Klik **Run workflow**, pilih branch `main` (production hanya boleh dari `main`),
+   pilih target `production` atau `preview`, lalu **Run workflow**.
+3. Workflow menjalankan type-check, lint, dan test, lalu `vercel pull`,
+   `vercel build`, dan `vercel deploy --prebuilt`. URL hasilnya ada di ringkasan run.
+
+Tombol ini baru muncul setelah file `.github/workflows/deploy-manual.yml` ada di
+branch `main`. Isi tiga secret di GitHub (Settings > Secrets and variables >
+Actions > New repository secret) sebelum dipakai pertama kali:
+
+| Secret | Isi |
+| --- | --- |
+| `VERCEL_TOKEN` | Token dari Vercel > Account Settings > Tokens, dengan akses ke team `konstanta-education` |
+| `VERCEL_ORG_ID` | `orgId` di `.vercel/project.json` |
+| `VERCEL_PROJECT_ID` | `projectId` di `.vercel/project.json` |
+
+`deploy-production.cmd` tetap bisa dipakai dari laptop dan tidak terpengaruh
+`git.deploymentEnabled`. Untuk kembali ke auto-deploy, hapus blok `git` di
+`vercel.json`.
+
 ### Google Sheets — sumber data live
 
 Data akademik (cabang, ruangan, tutor, program, kelas, mata pelajaran, jadwal)
@@ -240,15 +266,25 @@ Display akan memilih voice Indonesia yang paling sesuai; jika voice pria/wanita
 tidak tersedia di browser kiosk, sistem memakai voice Indonesia bawaan dengan
 penyesuaian pitch sebagai fallback.
 
+Saat siswa tap masuk, TV menampilkan "<Nama> telah hadir di Konstanta Education" dan
+mengucapkan sapaan ala anak Jaksel, mis. "<Nama> telah hadir di Konstanta Education.
+Semangat belajar ya, ...". Sapaan hanya bunyi setelah **Aktifkan Audio** diklik sekali
+di TV (aturan browser). Siswa dengan `voiceGender` `AUTO` memakai suara bawaan TV.
+
 ## Memasangkan layar TV
 
-1. Buka dashboard admin dari laptop, lalu masuk ke **Daftar Layar Display**.
-2. Klik **Tambah Layar TV**, pilih cabang/ruangan, lalu simpan kode pairing 6 digit.
-3. Di browser TV atau Android TV, buka `https://<DOMAIN>/display`.
-4. Klik **Pasangkan Layar**, masukkan kode 6 digit, lalu tekan **Pasangkan**.
+1. Buka dashboard admin dari laptop, lalu masuk ke **Layar TV**.
+2. Klik **Tambah Layar TV**, pilih cabang/ruangan, lalu simpan.
+3. Klik **Salin Alamat Display** pada kartu layar tersebut. Alamatnya berbentuk
+   `https://<DOMAIN>/display?screen=SCR-XXXXXXXXXX`.
+4. Di browser TV atau Android TV, buka alamat itu.
 5. Klik **Aktifkan Audio** satu kali agar browser mengizinkan suara media dan voice announcement.
 
-Kode berlaku 15 menit dan hanya dapat dipakai sekali. Jika kedaluwarsa atau TV
-diganti, klik **Kode Pairing** atau **Pasangkan Ulang** pada kartu layar di dashboard.
-Pairing ulang mencabut token TV lama. Setelah pairing berhasil, TV memakai nama,
-cabang, jadwal, dan playlist milik layar tersebut serta tampil `ONLINE` di dashboard.
+Tidak ada kode pairing. Tap kartu siswa langsung tampil di setiap layar yang membuka
+`/display`. Parameter `?screen=` hanya menentukan nama, cabang, jadwal, dan playlist
+milik layar itu serta membuat statusnya tampil `ONLINE` di dashboard. Tanpa parameter
+itu, TV tetap jalan dengan konten bawaan (semua jadwal dan media terbit).
+
+Endpoint `/api/v1/attendance/latest` dan `/api/v1/events/stream` terbuka tanpa login
+karena dibaca langsung oleh `/display`. Keduanya hanya mengembalikan tap 2 menit
+terakhir, tanpa UID kartu dan tanpa nomor telepon.
