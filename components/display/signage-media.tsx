@@ -12,9 +12,18 @@ interface SignageMediaProps {
   announcements: DisplayAnnouncement[];
   /** Status audio global dari tombol "Aktifkan Audio" di signage-screen. */
   audioUnlocked?: boolean;
+  /** Mengurangi efek GPU berat saat TV sedang memutar video/embed. */
+  performanceMode?: boolean;
+  onPlaybackPressureChange?: (isHeavy: boolean) => void;
 }
 
-export function SignageMedia({ media, announcements, audioUnlocked = false }: SignageMediaProps) {
+export function SignageMedia({
+  media,
+  announcements,
+  audioUnlocked = false,
+  performanceMode = false,
+  onPlaybackPressureChange,
+}: SignageMediaProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMediaPaused, setIsMediaPaused] = useState(false);
   const [audioEventReceived, setAudioEventReceived] = useState(false);
@@ -111,16 +120,28 @@ export function SignageMedia({ media, announcements, audioUnlocked = false }: Si
     ? resolveEmbedSrc(current.mediaType, url, { muted: !audioEnabled })
     : null;
   const isVideo = current?.mediaType === "VIDEO";
+  const isHeavyPlayback = Boolean(embedSrc || isVideo);
   const announcement = announcements[0];
+
+  useEffect(() => {
+    onPlaybackPressureChange?.(isHeavyPlayback);
+    return () => onPlaybackPressureChange?.(false);
+  }, [isHeavyPlayback, onPlaybackPressureChange]);
 
   return (
     <section
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={tiltStyle}
-      className="glass-3d-panel group relative h-full min-h-0 overflow-hidden preserve-3d shadow-xl border-cyan-400/30"
+      onMouseMove={performanceMode ? undefined : handleMouseMove}
+      onMouseLeave={performanceMode ? undefined : handleMouseLeave}
+      style={performanceMode ? undefined : tiltStyle}
+      className={`group relative h-full min-h-0 overflow-hidden border-cyan-400/30 ${
+        performanceMode
+          ? "signage-tv-media-panel rounded-xl border bg-black shadow-none"
+          : "glass-3d-panel preserve-3d shadow-xl"
+      }`}
     >
-      <div style={glareStyle} className="absolute inset-0 rounded-2xl z-20 pointer-events-none" />
+      {!performanceMode && (
+        <div style={glareStyle} className="absolute inset-0 rounded-2xl z-20 pointer-events-none" />
+      )}
 
       {/* Floating 3D Badge Indicator */}
       <div className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-slate-950/85 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-cyan-300 backdrop-blur-md shadow-md">
@@ -149,19 +170,23 @@ export function SignageMedia({ media, announcements, audioUnlocked = false }: Si
             key={`${current.id}-${audioEnabled ? "audio" : "muted"}`}
             src={embedSrc}
             title={current.name}
-            className="h-full w-full border-0"
+            className="signage-media-embed h-full w-full border-0"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
+            loading="eager"
           />
         ) : isVideo && current ? (
           <video
             ref={videoRef}
             key={current.id}
             src={url}
-            className="h-full w-full object-cover"
+            className="signage-media-video h-full w-full object-cover"
             autoPlay
             muted={!audioEnabled}
+            preload="auto"
+            poster={current.thumbnailUrl ?? undefined}
             playsInline
+            loop={playableMedia.length < 2}
             onEnded={() => !isMediaPaused && setCurrentIndex((index) => (index + 1) % playableMedia.length)}
           />
         ) : current ? (

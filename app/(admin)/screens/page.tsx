@@ -328,8 +328,8 @@ export default function ScreensPage() {
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Layar &ldquo;{created.name}&rdquo; Terdaftar</h2>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Buka alamat di bawah ini di browser perangkat TV. Tidak perlu kode atau
-                    pairing: notifikasi presensi siswa langsung tampil di layar.
+                    Buka alamat di bawah ini di browser perangkat TV. Notifikasi presensi siswa
+                    langsung tampil di layar.
                   </p>
                 </div>
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-4">

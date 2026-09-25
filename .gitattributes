@@ -1,0 +1,3 @@
+# Batch file Windows wajib CRLF; dengan LF saja, cmd.exe gagal menemukan label (goto/call :label).
+*.cmd text eol=crlf
+*.bat text eol=crlf

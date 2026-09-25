@@ -136,6 +136,8 @@ export function SignageScreen() {
   const [hasSynced, setHasSynced] = useState(false);
   const [prayerTimes, setPrayerTimes] = useState<Record<string, string> | null>(null);
   const [isIsometricStage, setIsIsometricStage] = useState(false);
+  // Video/embed sedang tampil: efek GPU berat dimatikan supaya TV berspek rendah tidak patah-patah.
+  const [heavyPlayback, setHeavyPlayback] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [audioStarting, setAudioStarting] = useState(false);
   const [sseDelivered, setSseDelivered] = useState(false);
@@ -441,7 +443,11 @@ export function SignageScreen() {
   }
 
   return (
-    <main className="relative flex h-screen w-screen select-none flex-col overflow-hidden bg-[#030712] text-white perspective-1000">
+    <main
+      className={`relative flex h-screen w-screen select-none flex-col overflow-hidden bg-[#030712] text-white perspective-1000 ${
+        heavyPlayback ? "signage-tv-performance" : ""
+      }`}
+    >
       <SignageAttendancePopup
         event={latestTapEvent}
         onClose={closeAttendancePopup}
@@ -463,8 +469,8 @@ export function SignageScreen() {
         {audioStarting ? "Menyiapkan Audio..." : audioEnabled ? "Audio Aktif" : "Aktifkan Audio"}
       </button>
 
-      {/* Interactive 3D Spatial Canvas Background */}
-      <Canvas3DBackdrop />
+      {/* Interactive 3D Spatial Canvas Background (dilepas saat video agar loop render-nya berhenti) */}
+      {!heavyPlayback && <Canvas3DBackdrop />}
 
       {/* Modern Gen-Z 10-Minute Pre-Class Alert Banner */}
       {startingSoonSession && (
@@ -509,7 +515,7 @@ export function SignageScreen() {
       {/* Main View Container */}
       <div
         className={`relative z-10 flex h-full w-full flex-col overflow-hidden transition-all duration-700 ease-out preserve-3d ${
-          isIsometricStage ? "isometric-kiosk-stage" : ""
+          isIsometricStage && !heavyPlayback ? "isometric-kiosk-stage" : ""
         }`}
       >
         <SignageHeader
@@ -527,6 +533,8 @@ export function SignageScreen() {
               media={payload.media}
               announcements={payload.announcements}
               audioUnlocked={audioEnabled}
+              performanceMode={heavyPlayback}
+              onPlaybackPressureChange={setHeavyPlayback}
             />
             <SignageWidgets
               now={now}

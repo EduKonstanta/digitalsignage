@@ -15,7 +15,7 @@ function formatJakartaTime(date: Date) {
 }
 
 /**
- * Endpoint ini dibaca langsung oleh halaman /display tanpa login atau pairing,
+ * Endpoint ini dibaca langsung oleh halaman /display tanpa login,
  * jadi siapa pun yang tahu alamatnya bisa memanggilnya. Karena itu jendela
  * pencarian dikunci LIVE_WINDOW_MS ke belakang supaya riwayat presensi tidak
  * bisa disusuri, dan hanya field yang benar-benar tampil di TV yang dikirim.

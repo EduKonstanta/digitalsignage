@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { broadcastAttendanceTap } from "@/lib/attendance-events";
 import { isAuthorizedAttendanceDevice } from "@/lib/attendance-auth";
+import { findByCardUid } from "@/lib/card-uid";
 import {
   formatAttendanceMessage,
   getFonnteConfig,
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Find Student by Card UID or NIS
-    const student = await db.student.findFirst({
+    let student = await db.student.findFirst({
       where: {
         OR: [
           ...(trimmedCard ? [{ cardUid: trimmedCard }] : []),
@@ -87,7 +88,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Pembaca kartu menulis UID yang sama dengan format berbeda (huruf kecil,
+    // dipisah ":" atau spasi). Bila pencocokan persis gagal, bandingkan bentuk
+    // kanoniknya sebelum menyatakan kartu tidak terdaftar.
+    if (!student && trimmedCard) {
+      const cardHolders = await db.student.findMany({
+        where: { isActive: true, cardUid: { not: null } },
+      });
+      student = findByCardUid(cardHolders, trimmedCard);
+    }
+
     if (!student) {
+      console.warn(`Presensi ditolak: kartu atau NIS tidak terdaftar (${trimmedCard || trimmedNis})`);
       return apiError(
         `Kartu atau NIS (${trimmedCard || trimmedNis}) tidak terdaftar dalam sistem siswa aktif.`,
         "STUDENT_NOT_FOUND",

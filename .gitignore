@@ -40,3 +40,6 @@ Thumbs.db
 # variables and local secrets" di atas. Pola luas seperti ".env*" sengaja tidak
 # dipakai karena ikut memblokir .env.example yang wajib ada di repo.
 !.env.example
+
+.vercel
+.env*

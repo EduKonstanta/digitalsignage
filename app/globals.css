@@ -203,6 +203,35 @@ body {
   }
 }
 
+/*
+ * Mode performa TV: aktif saat video/embed diputar (lihat signage-screen).
+ * Menghapus backdrop-filter, bayangan besar, dan animasi dekoratif yang paling
+ * membebani GPU di Android TV / stick murah, tanpa mengubah tata letak.
+ */
+.signage-tv-media-panel {
+  contain: layout paint;
+  background: #000;
+}
+
+.signage-media-embed,
+.signage-media-video {
+  background: #000;
+}
+
+.signage-tv-performance .signage-panel,
+.signage-tv-performance [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.signage-tv-performance .signage-panel {
+  box-shadow: none;
+}
+
+.signage-tv-performance .shimmer-3d-overlay {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .signage-marquee,
   .signage-pulse,

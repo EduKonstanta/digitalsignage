@@ -45,6 +45,34 @@ Script akan memverifikasi remote GitHub, akses team Vercel, environment wajib,
 dependency, type-check, test, Prisma Client, dan production build sebelum
 menjalankan `vercel deploy --prod`.
 
+### Tombol satu klik: commit + deploy + push
+
+`deploy.cmd` di root project menggabungkan semuanya. Klik ganda di File Explorer
+(atau jalankan `.\deploy.cmd`), maka script:
+
+1. menampilkan daftar perubahan lalu meminta konfirmasi `Y/N` dan pesan commit
+   (Enter = pesan otomatis `chore(deploy): deploy production <tanggal jam>`),
+2. men-stage semua perubahan (`git add -A`; file di `.gitignore` seperti `.env`
+   dan `*.db` tidak ikut),
+3. menjalankan `deploy-production.cmd` (verifikasi + `vercel deploy --prod`),
+4. **hanya bila deploy berhasil**: commit lalu `git push -u origin HEAD` ke branch
+   yang sedang aktif.
+
+Bila deploy gagal, tidak ada commit dan tidak ada push; perubahan tetap ter-stage
+sehingga bisa dijalankan ulang. Opsi: `--yes` (tanpa pertanyaan), `-m "pesan"`
+(pesan commit sendiri), `--help`. Karakter `%` dan `!` pada pesan commit dibuang
+oleh batch file.
+
+Catatan:
+
+- `next-env.d.ts` tidak pernah ikut di-commit. `next dev` menulis ulang file itu
+  dengan rujukan ke `.next-dev` yang tidak ada di CI, sehingga type-check di GitHub
+  Actions akan gagal bila ikut ter-commit.
+- Hentikan `npm run dev` sebelum menjalankan tombol ini. `npm ci` menghapus
+  `node_modules`, dan Windows biasanya menolaknya (EBUSY/EPERM) selama dev server masih memakai file di dalamnya.
+- File `*.cmd` wajib berakhir baris CRLF (dijaga oleh `.gitattributes`). Dengan LF
+  saja, `cmd.exe` gagal dengan "cannot find the batch label specified".
+
 ### Tombol deploy di GitHub (tanpa auto-deploy)
 
 Commit dan push **tidak** lagi men-deploy otomatis: `vercel.json` memuat
@@ -260,6 +288,11 @@ header `Authorization: Bearer <ATTENDANCE_DEVICE_TOKEN>` dan body berikut:
 Jika `type` tidak dikirim, sistem memilih `CHECK_IN` atau `CHECK_OUT` berdasarkan
 presensi terakhir siswa pada hari yang sama di zona waktu Asia/Jakarta.
 
+UID kartu dicocokkan tanpa memperhatikan format tulisan: `978C9877`, `97:8c:98:77`,
+`97-8C-98-77`, dan `97 8C 98 77` dianggap kartu yang sama. Urutan byte tidak diubah,
+jadi bila UID yang terbaca pembaca berbeda dari yang tersimpan (mis. terbalik),
+daftarkan ulang kartunya sesuai keluaran pembaca.
+
 Set `voiceGender` pada data siswa ke `MALE`, `FEMALE`, atau `AUTO` melalui API
 siswa. Nilai eksplisit lebih aman daripada menebak gender berdasarkan nama.
 Display akan memilih voice Indonesia yang paling sesuai; jika voice pria/wanita
@@ -270,6 +303,33 @@ Saat siswa tap masuk, TV menampilkan "<Nama> telah hadir di Konstanta Education"
 mengucapkan sapaan ala anak Jaksel, mis. "<Nama> telah hadir di Konstanta Education.
 Semangat belajar ya, ...". Sapaan hanya bunyi setelah **Aktifkan Audio** diklik sekali
 di TV (aturan browser). Siswa dengan `voiceGender` `AUTO` memakai suara bawaan TV.
+
+### Tap kartu tidak muncul di TV
+
+Periksa berurutan. Langkah 1 memisahkan masalah pembaca dari masalah TV:
+
+1. Uji dari laptop, tanpa pembaca:
+
+   ```bash
+   curl -i -X POST https://digitalsignage-nu.vercel.app/api/v1/attendance/tap \
+     -H "Authorization: Bearer <ATTENDANCE_DEVICE_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{"cardUid":"<UID-KARTU-SISWA>","deviceId":"TES"}'
+   ```
+
+   - `200` dan TV menampilkan popup: aplikasi sehat, masalahnya ada di pembaca (langkah 2).
+   - `401 UNAUTHORIZED_DEVICE`: token salah atau belum diisi di Vercel.
+   - `401 Protected deployment` (JSON dari Vercel): alamat yang dipakai dilindungi
+     Vercel Authentication. Pakai alamat publik `digitalsignage-nu.vercel.app`, bukan
+     `digitalsignage-konstanta-education.vercel.app` atau URL per-deployment.
+   - `404 STUDENT_NOT_FOUND`: UID belum terdaftar atau siswanya nonaktif. Cocokkan dengan
+     kolom UID di menu Siswa.
+2. Di pembaca/perangkat, pastikan URL, header `Authorization: Bearer ...`, dan
+   `Content-Type: application/json` persis seperti contoh di atas.
+3. Buka `https://digitalsignage-nu.vercel.app/display?screen=SCR-XXXXXXXXXX` di TV. Bila
+   `/api/v1/attendance/latest` di tab Network menjawab `401 SCREEN_UNAUTHORIZED`
+   ("Layar belum dipasangkan"), deployment production masih versi lama yang meminta
+   pairing. Jalankan `deploy.cmd` agar production memakai kode tanpa pairing.
 
 ## Memasangkan layar TV
 

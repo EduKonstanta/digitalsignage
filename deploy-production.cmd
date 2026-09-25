@@ -101,15 +101,17 @@ if errorlevel 1 (
 )
 
 set "MISSING_ENV="
-for %%E in (TURSO_DATABASE_URL TURSO_AUTH_TOKEN AUTH_SECRET APP_URL) do (
+rem Hanya variable yang benar-benar dibaca kode. ATTENDANCE_DEVICE_TOKEN wajib:
+rem tanpa itu semua tap kartu ditolak 401 dan TV tidak pernah menampilkan apa pun.
+for %%E in (TURSO_DATABASE_URL TURSO_AUTH_TOKEN ATTENDANCE_DEVICE_TOKEN) do (
   findstr /i /c:"%%E" "%ENV_FILE%" >nul
   if errorlevel 1 set "MISSING_ENV=!MISSING_ENV! %%E"
 )
 
-rem Fitur presensi kartu dan notifikasi WhatsApp gagal diam-diam bila secret ini
-rem belum diisi, jadi diperiksa sebagai peringatan (tidak memblokir deployment).
+rem Notifikasi WhatsApp dan pembersihan data terjadwal gagal diam-diam bila secret
+rem ini belum diisi, jadi diperiksa sebagai peringatan (tidak memblokir deployment).
 set "MISSING_OPTIONAL="
-for %%E in (ATTENDANCE_DEVICE_TOKEN FONNTE_TOKEN FONNTE_ENABLED FONNTE_WEBHOOK_SECRET) do (
+for %%E in (FONNTE_TOKEN FONNTE_ENABLED FONNTE_WEBHOOK_SECRET CRON_SECRET) do (
   findstr /i /c:"%%E" "%ENV_FILE%" >nul
   if errorlevel 1 set "MISSING_OPTIONAL=!MISSING_OPTIONAL! %%E"
 )
@@ -117,7 +119,7 @@ for %%E in (ATTENDANCE_DEVICE_TOKEN FONNTE_TOKEN FONNTE_ENABLED FONNTE_WEBHOOK_S
 if defined MISSING_OPTIONAL (
   echo [PERINGATAN] Environment opsional berikut belum tersedia:
   echo!MISSING_OPTIONAL!
-  echo             Presensi kartu / notifikasi WhatsApp tidak akan aktif.
+  echo             Notifikasi WhatsApp / pembersihan data terjadwal tidak akan aktif.
 )
 
 if defined MISSING_ENV (
