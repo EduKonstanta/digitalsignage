@@ -11,6 +11,19 @@ export function canonicalCardUid(value: string): string {
 }
 
 /**
+ * Bentuk yang aman dan mudah dibaca di layar display. UID pendek tetap utuh
+ * supaya operator bisa mencocokkan kartu saat setup; UID panjang disingkat agar
+ * tidak terlalu banyak membuka identitas kartu fisik di area publik.
+ */
+export function displayCardUid(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const canonical = canonicalCardUid(value);
+  if (!canonical) return null;
+  if (canonical.length <= 8) return canonical;
+  return `${canonical.slice(0, 4)}...${canonical.slice(-4)}`;
+}
+
+/**
  * Cari pemilik kartu dengan membandingkan bentuk kanonik. Hasil hanya diberikan
  * bila tepat satu siswa yang cocok; dua kartu berbeda yang menyeragam ke UID
  * yang sama dianggap ambigu dan ditolak daripada salah mencatat presensi.

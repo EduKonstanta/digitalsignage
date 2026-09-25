@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalCardUid, findByCardUid } from "@/lib/card-uid";
+import { canonicalCardUid, displayCardUid, findByCardUid } from "@/lib/card-uid";
 
 describe("canonicalCardUid", () => {
   it.each(["978C9877", "978c9877", "97:8C:98:77", "97-8c-98-77", " 97 8C 98 77 "])(
@@ -37,5 +37,15 @@ describe("findByCardUid", () => {
       { id: "y", cardUid: "aabb" },
     ];
     expect(findByCardUid(ambiguous, "AABB")).toBeNull();
+  });
+});
+
+describe("displayCardUid", () => {
+  it("menampilkan UID pendek dalam bentuk kanonik", () => {
+    expect(displayCardUid("97:8c:98:77")).toBe("978C9877");
+  });
+
+  it("menyingkat UID panjang untuk display publik", () => {
+    expect(displayCardUid("04:a1:b2:c3:d4:e5")).toBe("04A1...D4E5");
   });
 });

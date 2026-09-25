@@ -2,6 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
+set "PROJECT_DIR=%CD%"
 
 set "EXPECTED_TEAM_NAME=Konstanta Education"
 set "VERCEL_SCOPE=konstanta-education"
@@ -135,9 +136,19 @@ echo [OK] Environment production wajib tersedia.
 
 echo.
 echo [5/5] Menjalankan verifikasi lokal dan deployment production...
+
+call :stop_dev_server
+if errorlevel 1 (
+  set "EXIT_CODE=1"
+  goto :cleanup
+)
+
 call npm.cmd ci
 if errorlevel 1 (
   echo [GAGAL] npm ci gagal.
+  echo         Bila pesannya EPERM/unlink pada node_modules, masih ada proses yang
+  echo         memakai folder itu ^(dev server, editor, atau antivirus^). Tutup proses
+  echo         tersebut lalu jalankan script ini lagi untuk memulihkan dependency.
   set "EXIT_CODE=1"
   goto :cleanup
 )
@@ -167,6 +178,33 @@ echo.
 echo [BERHASIL] KE Digital Signage sudah di-deploy ke production
 echo pada team "%EXPECTED_TEAM_NAME%".
 goto :cleanup
+
+rem `npm ci` menghapus node_modules lebih dulu, dan Windows menolak menghapus file
+rem yang sedang dibuka (EPERM: operation not permitted, unlink ...). Bila `npm run
+rem dev` masih hidup, penghapusan berhenti di tengah jalan sehingga dependency
+rem rusak dan deployment gagal. Jadi proses Node dari folder ini dihentikan dulu.
+:stop_dev_server
+set "DEV_PIDS="
+rem Pemisah path disamakan lebih dulu: baris perintah Node bisa memakai "\" atau "/"
+rem untuk folder yang sama, tergantung cara proses itu dijalankan.
+for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$dir = ($env:PROJECT_DIR).ToLower().Replace('/','\'); Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine.ToLower().Replace('/','\').Contains($dir) } | ForEach-Object { $_.ProcessId }"`) do set "DEV_PIDS=!DEV_PIDS! %%P"
+if not defined DEV_PIDS exit /b 0
+
+echo [PERINGATAN] Masih ada proses Node yang berjalan dari folder ini ^(PID:!DEV_PIDS! ^).
+echo              Biasanya ini `npm run dev`. npm ci tidak bisa menghapus
+echo              node_modules selama proses tersebut hidup.
+if defined KE_DEPLOY_ASSUME_YES goto :stop_dev_kill
+
+choice /c YN /n /m "Hentikan proses tersebut sekarang? [Y/N] "
+if errorlevel 2 (
+  echo [DIBATALKAN] Hentikan dev server lebih dulu, lalu jalankan script ini lagi.
+  exit /b 1
+)
+
+:stop_dev_kill
+for %%P in (!DEV_PIDS!) do taskkill /PID %%P /F >nul 2>&1
+echo [OK] Dev server dihentikan.
+exit /b 0
 
 :require_command
 where.exe %~1 >nul 2>&1

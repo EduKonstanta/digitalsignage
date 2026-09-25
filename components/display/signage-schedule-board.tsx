@@ -130,9 +130,9 @@ function Schedule3DItem({ schedule, index }: { schedule: DisplaySchedule; index:
             >
               {schedule.subject}
             </h3>
-            <div className="flex items-center gap-4 text-xs font-bold text-slate-300 flex-wrap">
-              <span className="flex items-center gap-1 text-slate-300">
-                <User className="h-3.5 w-3.5 text-cyan-400" />
+            <div className="flex items-center gap-4 text-base lg:text-xl font-bold text-slate-200 flex-wrap">
+              <span className="flex items-center gap-1.5 lg:gap-2">
+                <User className="h-4 w-4 lg:h-5 lg:w-5 text-cyan-400" />
                 {schedule.teacher}
               </span>
             </div>
@@ -141,12 +141,12 @@ function Schedule3DItem({ schedule, index }: { schedule: DisplaySchedule; index:
 
         {/* Room & Status */}
         <div className="flex items-center justify-between md:flex-col md:items-end gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-300 shadow-md">
-            <MapPin className="h-3.5 w-3.5 text-amber-400" />
+          <div className="flex items-center gap-1.5 lg:gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 lg:px-4 py-1 lg:py-1.5 text-base lg:text-xl font-black text-amber-300 shadow-md">
+            <MapPin className="h-4 w-4 lg:h-5 lg:w-5 text-amber-400" />
             {schedule.room}
           </div>
           <span
-            className={`rounded-full border px-3 py-1 text-center text-xs font-black uppercase tracking-wider shadow-lg ${config.className}`}
+            className={`rounded-full border px-3 lg:px-4 py-1 text-center text-xs lg:text-sm font-black uppercase tracking-wider shadow-lg ${config.className}`}
           >
             {config.label}
           </span>

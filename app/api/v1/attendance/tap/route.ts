@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { broadcastAttendanceTap } from "@/lib/attendance-events";
 import { isAuthorizedAttendanceDevice } from "@/lib/attendance-auth";
-import { findByCardUid } from "@/lib/card-uid";
+import { displayCardUid, findByCardUid } from "@/lib/card-uid";
 import {
   formatAttendanceMessage,
   getFonnteConfig,
@@ -99,6 +99,27 @@ export async function POST(req: NextRequest) {
     }
 
     if (!student) {
+      const rejectedAt = new Date();
+      const rejectedUid = displayCardUid(trimmedCard);
+      broadcastAttendanceTap({
+        id: `unknown-card-${rejectedAt.getTime()}-${rejectedUid || trimmedNis || "empty"}`,
+        studentId: "",
+        studentName: "Kartu belum terdaftar",
+        nis: trimmedNis || "-",
+        className: "Hubungi admin untuk mendaftarkan UID RFID",
+        voiceGender: "AUTO",
+        cardUid: rejectedUid,
+        photoUrl: null,
+        type: type || "CHECK_IN",
+        timestamp: rejectedAt.toISOString(),
+        timeFormatted: formatJakartaTime(rejectedAt),
+        deviceId,
+        fonnteStatus: "SKIPPED",
+        parentPhone: null,
+        tapStatus: "UNKNOWN_CARD",
+        message: "UID kartu tidak ditemukan pada data siswa aktif.",
+      });
+
       console.warn(`Presensi ditolak: kartu atau NIS tidak terdaftar (${trimmedCard || trimmedNis})`);
       return apiError(
         `Kartu atau NIS (${trimmedCard || trimmedNis}) tidak terdaftar dalam sistem siswa aktif.`,
@@ -110,6 +131,7 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const timeFormatted = formatJakartaTime(now);
     const dateFormatted = formatJakartaDate(now);
+    const displayUid = displayCardUid(student.cardUid || trimmedCard);
 
     // 2. Determine Attendance Type (Check-In or Check-Out) if not explicitly supplied
     let attendanceType: "CHECK_IN" | "CHECK_OUT";
@@ -142,6 +164,25 @@ export async function POST(req: NextRequest) {
     });
 
     if (recentDuplicate) {
+      broadcastAttendanceTap({
+        id: `${recentDuplicate.id}-duplicate-${now.getTime()}`,
+        studentId: student.id,
+        studentName: student.name,
+        nis: student.nis,
+        className: student.className,
+        voiceGender: student.voiceGender as "AUTO" | "MALE" | "FEMALE",
+        cardUid: displayUid,
+        photoUrl: student.photoUrl,
+        type: attendanceType,
+        timestamp: now.toISOString(),
+        timeFormatted,
+        deviceId,
+        fonnteStatus: recentDuplicate.fonnteStatus as "QUEUED" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "DISABLED" | "SKIPPED",
+        parentPhone: null,
+        tapStatus: "DUPLICATE",
+        message: "Kartu baru saja di-tap beberapa detik yang lalu.",
+      });
+
       return apiSuccess(
         {
           duplicate: true,
@@ -198,9 +239,7 @@ export async function POST(req: NextRequest) {
       nis: student.nis,
       className: student.className,
       voiceGender: student.voiceGender as "AUTO" | "MALE" | "FEMALE",
-      // Event ini dibaca /display tanpa login, jadi UID kartu fisik dan nomor
-      // telepon tidak ikut dipancarkan (sama seperti /attendance/latest).
-      cardUid: null,
+      cardUid: displayUid,
       photoUrl: student.photoUrl,
       type: attendanceType,
       timestamp: now.toISOString(),
@@ -208,6 +247,8 @@ export async function POST(req: NextRequest) {
       deviceId,
       fonnteStatus,
       parentPhone: null,
+      tapStatus: "RECORDED",
+      message: attendanceType === "CHECK_OUT" ? "Tap keluar berhasil tercatat." : "Tap masuk berhasil tercatat.",
     });
 
     if (fonnteConfig.isEnabled && fonnteConfig.token && parentPhone) {

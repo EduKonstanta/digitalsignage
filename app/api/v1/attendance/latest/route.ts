@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
+import { displayCardUid } from "@/lib/card-uid";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +74,7 @@ export async function GET(req: NextRequest) {
         nis: attendance.student.nis,
         className: attendance.className,
         voiceGender: attendance.student.voiceGender,
-        // cardUid sengaja tidak dikirim: tidak dipakai UI dan merupakan identitas kartu fisik.
-        cardUid: null,
+        cardUid: displayCardUid(attendance.cardUid),
         photoUrl: attendance.student.photoUrl,
         type: attendance.type,
         timestamp: attendance.timestamp.toISOString(),
@@ -83,6 +83,8 @@ export async function GET(req: NextRequest) {
         fonnteStatus: attendance.fonnteStatus,
         // Nomor telepon tidak ditampilkan di TV, jadi tidak ikut dikirim (walau sudah disamarkan).
         parentPhone: null,
+        tapStatus: "RECORDED",
+        message: attendance.type === "CHECK_OUT" ? "Tap keluar berhasil tercatat." : "Tap masuk berhasil tercatat.",
       })),
     );
   } catch (error) {

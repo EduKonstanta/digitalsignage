@@ -116,6 +116,10 @@ if defined HAS_CHANGES if not defined COMMIT_MSG (
 rem Tanda petik di pesan akan memutus argumen git, jadi dibuang.
 if defined COMMIT_MSG set "COMMIT_MSG=!COMMIT_MSG:"=!"
 
+rem Dev server yang masih hidup membuat `npm ci` di deploy-production.cmd gagal;
+rem dengan --yes proses itu dihentikan tanpa bertanya lagi.
+if defined AUTO_YES set "KE_DEPLOY_ASSUME_YES=1"
+
 echo.
 echo [1/3] Verifikasi dan deploy production...
 call "%~dp0deploy-production.cmd"

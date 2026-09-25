@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { CheckCircle2, Sparkles, Clock, CreditCard, User, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Sparkles, Clock, CreditCard, User, X } from "lucide-react";
 import type { AttendanceTapEvent } from "@/lib/attendance-events";
 import { triggerGenZAnnouncement } from "@/lib/cinema-audio";
 import { formatAttendanceAnnouncementText } from "@/lib/cinema-announcement";
@@ -43,7 +43,7 @@ export function SignageAttendancePopup({
      */
     let holdUntil = startTime + autoCloseDurationMs;
 
-    if (audioEnabled && audioPlayedRef.current !== event.id) {
+    if (audioEnabled && audioPlayedRef.current !== event.id && (event.tapStatus ?? "RECORDED") === "RECORDED") {
       audioPlayedRef.current = event.id;
       holdUntil = startTime + AUDIO_HOLD_CAP_MS;
 
@@ -86,23 +86,46 @@ export function SignageAttendancePopup({
 
   if (!event) return null;
 
+  const tapStatus = event.tapStatus ?? "RECORDED";
   const isCheckOut = event.type === "CHECK_OUT";
+  const isDuplicate = tapStatus === "DUPLICATE";
+  const isUnknown = tapStatus === "UNKNOWN_CARD";
+  const accent = isUnknown ? "rose" : isCheckOut || isDuplicate ? "amber" : "cyan";
+  const borderClass =
+    accent === "rose"
+      ? "border-rose-400/80 shadow-[0_0_50px_rgba(251,113,133,0.5)]"
+      : accent === "amber"
+        ? "border-amber-400/80 shadow-[0_0_50px_rgba(251,191,36,0.5)]"
+        : "border-cyan-400/80 shadow-[0_0_50px_rgba(6,182,212,0.6)]";
+  const barClass =
+    accent === "rose" ? "bg-rose-400" : accent === "amber" ? "bg-amber-400" : "bg-cyan-400";
+  const badgeClass =
+    accent === "rose"
+      ? "bg-rose-400/20 text-rose-300 border border-rose-400/30"
+      : accent === "amber"
+        ? "bg-amber-400/20 text-amber-300 border border-amber-400/30"
+        : "bg-cyan-400/20 text-cyan-300 border border-cyan-400/30";
+  const iconClass =
+    accent === "rose" ? "text-rose-400" : accent === "amber" ? "text-amber-400" : "text-cyan-400";
+  const successMessage =
+    event.message ||
+    (isUnknown
+      ? "UID kartu tidak ditemukan pada data siswa aktif."
+      : isDuplicate
+        ? "Kartu baru saja di-tap beberapa detik yang lalu."
+        : isCheckOut
+          ? "Tap keluar berhasil tercatat."
+          : "Telah hadir di Konstanta Education. Semangat belajar!");
 
   return (
     <div className="fixed inset-x-0 top-6 z-50 flex justify-center px-4 pointer-events-auto animate-in fade-in slide-in-from-top-6 duration-500">
       <div
-        className={`relative w-full max-w-2xl overflow-hidden rounded-3xl border-2 shadow-[0_0_50px_rgba(6,182,212,0.5)] backdrop-blur-2xl transition-all duration-300 ${
-          isCheckOut
-            ? "border-amber-400/80 bg-slate-950/95 shadow-[0_0_50px_rgba(251,191,36,0.5)]"
-            : "border-cyan-400/80 bg-slate-950/95 shadow-[0_0_50px_rgba(6,182,212,0.6)]"
-        }`}
+        className={`relative w-full max-w-2xl overflow-hidden rounded-3xl border-2 bg-slate-950/95 backdrop-blur-2xl transition-all duration-300 ${borderClass}`}
       >
         {/* Top Progress Bar */}
         <div className="h-1.5 w-full bg-slate-800/80">
           <div
-            className={`h-full transition-all duration-75 ease-linear ${
-              isCheckOut ? "bg-amber-400" : "bg-cyan-400"
-            }`}
+            className={`h-full transition-all duration-75 ease-linear ${barClass}`}
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -131,20 +154,22 @@ export function SignageAttendancePopup({
                     alt={event.studentName}
                     className="h-full w-full object-cover"
                   />
+                ) : isUnknown ? (
+                  <CreditCard className="h-10 w-10 sm:h-12 sm:w-12 text-rose-400" />
                 ) : (
-                  <User
-                    className={`h-10 w-10 sm:h-12 sm:w-12 ${
-                      isCheckOut ? "text-amber-400" : "text-cyan-400"
-                    }`}
-                  />
+                  <User className={`h-10 w-10 sm:h-12 sm:w-12 ${iconClass}`} />
                 )}
               </div>
               <div
                 className={`absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-950 ${
-                  isCheckOut ? "bg-amber-400 text-slate-950" : "bg-cyan-400 text-slate-950"
+                  accent === "rose"
+                    ? "bg-rose-400 text-slate-950"
+                    : accent === "amber"
+                      ? "bg-amber-400 text-slate-950"
+                      : "bg-cyan-400 text-slate-950"
                 }`}
               >
-                <CheckCircle2 className="h-4 w-4" />
+                {isUnknown ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
               </div>
             </div>
 
@@ -152,14 +177,10 @@ export function SignageAttendancePopup({
             <div className="min-w-0 flex-1 pr-6">
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider ${
-                    isCheckOut
-                      ? "bg-amber-400/20 text-amber-300 border border-amber-400/30"
-                      : "bg-cyan-400/20 text-cyan-300 border border-cyan-400/30"
-                  }`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider ${badgeClass}`}
                 >
-                  <Sparkles className="h-3 w-3" />
-                  {isCheckOut ? "SISWA TAP KELUAR" : "TELAH HADIR"}
+                  {isUnknown ? <AlertTriangle className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                  {isUnknown ? "KARTU TIDAK TERDAFTAR" : isDuplicate ? "TAP GANDA TERDETEKSI" : isCheckOut ? "SISWA TAP KELUAR" : "TELAH HADIR"}
                 </span>
 
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">
@@ -174,14 +195,16 @@ export function SignageAttendancePopup({
 
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300">
                 {event.cardUid ? (
-                  <span className="flex items-center gap-1.5 font-mono text-cyan-300">
+                  <span className={`flex items-center gap-1.5 font-mono ${isUnknown ? "text-rose-300" : "text-cyan-300"}`}>
                     <CreditCard className="h-4 w-4" /> RFID {event.cardUid}
                   </span>
                 ) : null}
-                <span className="text-sm font-semibold text-emerald-300">
-                  {isCheckOut
-                    ? "Tap keluar berhasil tercatat."
-                    : "Telah hadir di Konstanta Education. Semangat belajar!"}
+                <span
+                  className={`text-sm font-semibold ${
+                    isUnknown ? "text-rose-200" : isDuplicate ? "text-amber-200" : "text-emerald-300"
+                  }`}
+                >
+                  {successMessage}
                 </span>
               </div>
             </div>

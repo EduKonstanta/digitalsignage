@@ -15,6 +15,8 @@ export interface AttendanceTapEvent {
   deviceId?: string | null;
   fonnteStatus: "QUEUED" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "DISABLED" | "SKIPPED";
   parentPhone?: string | null;
+  tapStatus?: "RECORDED" | "DUPLICATE" | "UNKNOWN_CARD";
+  message?: string | null;
 }
 
 // Global in-memory singleton EventEmitter for Next.js server runtime
