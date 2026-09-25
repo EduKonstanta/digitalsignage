@@ -1,0 +1,87 @@
+name: Deploy Manual
+
+# Satu-satunya jalan deploy dari GitHub: tombol "Run workflow" di tab Actions.
+# Push/commit tidak memicu apa pun (auto-deploy Git Vercel dimatikan lewat
+# vercel.json). Cara pakai dan secret yang dibutuhkan ada di DEPLOYMENT.md.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target deployment"
+        type: choice
+        options:
+          - production
+          - preview
+        default: production
+
+permissions:
+  contents: read
+
+# Dua deploy tidak boleh jalan bersamaan; yang kedua menunggu yang pertama.
+concurrency:
+  group: vercel-deploy
+  cancel-in-progress: false
+
+env:
+  TARGET: ${{ inputs.target }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Periksa target dan secret
+        run: |
+          if [ "$TARGET" = "production" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Production hanya boleh dari branch main (dipilih: $GITHUB_REF). Pilih main di 'Use workflow from', atau pilih target preview."
+            exit 1
+          fi
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name belum diisi (Settings > Secrets and variables > Actions)."
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Sama dengan `npm run verify`, tanpa build: build dilakukan Vercel di
+      # bawah dengan environment variable production yang asli.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+      - name: Ambil pengaturan dan environment Vercel
+        run: npx --yes vercel@latest pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN"
+
+      - name: Build
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+          else
+            npx --yes vercel@latest build --token="$VERCEL_TOKEN"
+          fi
+
+      - name: Deploy
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            url=$(npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          else
+            url=$(npx --yes vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN")
+          fi
+          echo "Deployment ($TARGET): $url"
+          {
+            echo "### Deployment $TARGET berhasil"
+            echo "- URL: $url"
+            echo "- Commit: \`$GITHUB_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
