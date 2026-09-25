@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { CheckCircle2, Sparkles, Clock, CreditCard, User, X } from "lucide-react";
 import type { AttendanceTapEvent } from "@/lib/attendance-events";
 import { triggerGenZAnnouncement } from "@/lib/cinema-audio";
+import { formatAttendanceAnnouncementText } from "@/lib/cinema-announcement";
 
 /** Batas atas popup menunggu sapaannya selesai sebelum antrean dilanjutkan. */
 const AUDIO_HOLD_CAP_MS = 14_000;
@@ -46,18 +47,16 @@ export function SignageAttendancePopup({
       audioPlayedRef.current = event.id;
       holdUntil = startTime + AUDIO_HOLD_CAP_MS;
 
-      const text =
-        event.type === "CHECK_OUT"
-          ? `Nice work, ${event.studentName}! Sesi belajar kamu hari ini officially done. Hati-hati di jalan, and see you next time!`
-          : `Hi, ${event.studentName}! Welcome back di Konstanta Education. Kehadiran kamu udah ke-record, nih. Semangat belajar, and have a productive session!`;
+      const text = formatAttendanceAnnouncementText({
+        studentName: event.studentName,
+        type: event.type,
+        seed: event.id,
+      });
       speechTimer = window.setTimeout(() => {
         void triggerGenZAnnouncement(
           text,
-          {
-            gender: event.voiceGender,
-            rate: 1.03,
-            pitch: event.voiceGender === "FEMALE" ? 1.08 : event.voiceGender === "MALE" ? 0.94 : 1,
-          },
+          // Suara pria/wanita mengikuti Student.voiceGender; nada diatur di cinema-audio.
+          { gender: event.voiceGender, rate: 1.05 },
           // Siswa yang baru hadir didahulukan di antrean audio.
           "attendance",
         ).then(() => {
@@ -160,7 +159,7 @@ export function SignageAttendancePopup({
                   }`}
                 >
                   <Sparkles className="h-3 w-3" />
-                  {isCheckOut ? "SISWA TAP KELUAR" : "SISWA TELAH MASUK"}
+                  {isCheckOut ? "SISWA TAP KELUAR" : "TELAH HADIR"}
                 </span>
 
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300">
@@ -179,10 +178,10 @@ export function SignageAttendancePopup({
                     <CreditCard className="h-4 w-4" /> RFID {event.cardUid}
                   </span>
                 ) : null}
-                <span className="font-semibold text-emerald-300">
+                <span className="text-sm font-semibold text-emerald-300">
                   {isCheckOut
                     ? "Tap keluar berhasil tercatat."
-                    : "Tap berhasil, siswa telah masuk ke outlet Konstanta Education."}
+                    : "Telah hadir di Konstanta Education. Semangat belajar!"}
                 </span>
               </div>
             </div>

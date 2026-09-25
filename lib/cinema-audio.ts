@@ -12,9 +12,24 @@ export interface SpeechOptions {
   chime?: boolean;
 }
 
+/**
+ * Cocokkan per kata utuh. Pencocokan substring membuat "male" ikut mengenai
+ * "Female" dan "man" mengenai "Woman", sehingga suara wanita terpilih untuk
+ * siswa pria.
+ */
 const VOICE_HINTS = {
-  MALE: ["ardi", "dimas", "male", "man", "laki"],
-  FEMALE: ["gadis", "damayanti", "siti", "female", "woman", "perempuan"],
+  MALE: /\b(ardi|dimas|andika|male|man|pria|laki-laki)\b/i,
+  FEMALE: /\b(gadis|damayanti|siti|female|woman|wanita|perempuan)\b/i,
+} as const;
+
+/**
+ * Nada suara per gender. Kalau perangkat tidak punya suara Indonesia berbeda
+ * untuk pria dan wanita (umum di Android TV: hanya satu suara), nada digeser
+ * lebih jauh supaya siswa pria dan wanita tetap terdengar berbeda.
+ */
+const GENDER_PITCH = {
+  MATCHED: { MALE: 0.95, FEMALE: 1.08 },
+  FALLBACK: { MALE: 0.7, FEMALE: 1.25 },
 } as const;
 
 let sharedAudioContext: AudioContext | null = null;
@@ -42,7 +57,7 @@ async function loadVoices(timeoutMs = 1_500) {
   });
 }
 
-function selectVoice(voices: SpeechSynthesisVoice[], options: SpeechOptions) {
+export function selectVoice(voices: SpeechSynthesisVoice[], options: SpeechOptions) {
   const language = (options.language || "id-ID").toLowerCase();
   const languagePrefix = language.split("-")[0];
   const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
@@ -51,22 +66,26 @@ function selectVoice(voices: SpeechSynthesisVoice[], options: SpeechOptions) {
     const preferred = matching.find((voice) =>
       voice.name.toLowerCase().includes(options.preferredVoiceName!.toLowerCase()),
     );
-    if (preferred) return preferred;
+    if (preferred) return { voice: preferred, genderMatched: true };
   }
 
   const gender = options.gender || "AUTO";
   if (gender !== "AUTO") {
-    const hints = VOICE_HINTS[gender];
-    const genderVoice = matching.find((voice) =>
-      hints.some((hint) => voice.name.toLowerCase().includes(hint)),
-    );
-    if (genderVoice) return genderVoice;
+    const genderVoice = matching.find((voice) => VOICE_HINTS[gender].test(voice.name));
+    if (genderVoice) return { voice: genderVoice, genderMatched: true };
   }
 
-  return (
-    matching.find((voice) => /natural|google|indonesian/i.test(voice.name)) ||
-    matching[0]
-  );
+  return {
+    voice:
+      matching.find((voice) => /natural|google|indonesian/i.test(voice.name)) || matching[0],
+    genderMatched: false,
+  };
+}
+
+/** Nada bawaan; hanya berlaku bila pemanggil tidak menentukan `pitch` sendiri. */
+export function resolvePitch(gender: SpeechGender, genderMatched: boolean) {
+  if (gender === "AUTO") return 1.05;
+  return GENDER_PITCH[genderMatched ? "MATCHED" : "FALLBACK"][gender];
 }
 
 export async function unlockSignageAudio() {
@@ -180,11 +199,11 @@ export async function speakGenZSpeech(text: string, options: SpeechOptions = {})
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = options.language || "id-ID";
   utterance.rate = options.rate ?? 1;
-  utterance.pitch = options.pitch ?? 1.05;
   utterance.volume = options.volume ?? 1;
 
-  const voice = selectVoice(await loadVoices(), options);
+  const { voice, genderMatched } = selectVoice(await loadVoices(), options);
   if (voice) utterance.voice = voice;
+  utterance.pitch = options.pitch ?? resolvePitch(options.gender || "AUTO", genderMatched);
 
   await new Promise<void>((resolve) => {
     let finished = false;
