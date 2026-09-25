@@ -22,12 +22,7 @@ import {
   unlockSignageAudio,
 } from "@/lib/cinema-audio";
 import type { AttendanceTapEvent } from "@/lib/attendance-events";
-import {
-  claimScreenToken,
-  clearScreenToken,
-  readScreenToken,
-  screenAuthHeaders,
-} from "@/lib/screen-token";
+import { SCREEN_QUERY_PARAM } from "@/lib/constants";
 
 const EMPTY_PAYLOAD: DisplayPayload = {
   screen: {
@@ -144,11 +139,6 @@ export function SignageScreen() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [audioStarting, setAudioStarting] = useState(false);
   const [sseDelivered, setSseDelivered] = useState(false);
-  const [screenToken, setScreenToken] = useState<string | null>(null);
-  const [showPairing, setShowPairing] = useState(false);
-  const [pairingInput, setPairingInput] = useState("");
-  const [pairingBusy, setPairingBusy] = useState(false);
-  const [pairingError, setPairingError] = useState<string | null>(null);
   const [latestTapEvent, setLatestTapEvent] = useState<AttendanceTapEvent | null>(null);
   const playedVoiceIds = useRef(new Set<string>());
   const spokenStartingSoonIds = useRef(new Set<string>());
@@ -160,16 +150,10 @@ export function SignageScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/display", {
-        cache: "no-store",
-        headers: screenAuthHeaders(),
-      });
-      if (response.status === 401) {
-        clearScreenToken();
-        setScreenToken(null);
-        setShowPairing(true);
-        throw new Error("Token layar tidak valid. Silakan pasangkan ulang layar.");
-      }
+      // /display?screen=<deviceId> menentukan playlist & cabang layar ini.
+      const deviceId = new URLSearchParams(window.location.search).get(SCREEN_QUERY_PARAM);
+      const query = deviceId ? `?${SCREEN_QUERY_PARAM}=${encodeURIComponent(deviceId)}` : "";
+      const response = await fetch(`/api/v1/display${query}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Display API returned ${response.status}`);
       const body = (await response.json()) as { success: boolean; data: DisplayPayload };
       if (!body.success) throw new Error("Display API returned an error");
@@ -237,10 +221,7 @@ export function SignageScreen() {
   }, []);
 
   useEffect(() => {
-    if (!screenToken) return;
-    const eventSource = new EventSource(
-      `/api/v1/events/stream?screenToken=${encodeURIComponent(screenToken)}`,
-    );
+    const eventSource = new EventSource("/api/v1/events/stream");
     const handleAttendanceTap = (message: MessageEvent<string>) => {
       try {
         showAttendanceEvent(JSON.parse(message.data) as AttendanceTapEvent);
@@ -260,7 +241,7 @@ export function SignageScreen() {
       eventSource.close();
       setSseDelivered(false);
     };
-  }, [showAttendanceEvent, screenToken]);
+  }, [showAttendanceEvent]);
 
   /**
    * Polling tidak pernah dimatikan total. `attendanceEmitter` hidup di memori
@@ -271,13 +252,11 @@ export function SignageScreen() {
    * sampai SSE terbukti mengantar tap, lalu melambat jadi jaring pengaman.
    */
   useEffect(() => {
-    if (!screenToken) return;
-
     const pollLatestAttendance = async () => {
       try {
         const response = await fetch(
           `/api/v1/attendance/latest?after=${encodeURIComponent(lastAttendanceTimestamp.current)}`,
-          { cache: "no-store", headers: screenAuthHeaders() },
+          { cache: "no-store" },
         );
         if (!response.ok) return;
         const body = (await response.json()) as {
@@ -297,17 +276,12 @@ export function SignageScreen() {
       sseDelivered ? ATTENDANCE_POLL_SLOW_MS : ATTENDANCE_POLL_FAST_MS,
     );
     return () => window.clearInterval(timer);
-  }, [showAttendanceEvent, sseDelivered, screenToken]);
+  }, [showAttendanceEvent, sseDelivered]);
 
   useEffect(() => {
     setNow(new Date());
     const clock = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(clock);
-  }, []);
-
-  // Token hasil pairing perangkat; tanpa ini fitur presensi tidak diaktifkan.
-  useEffect(() => {
-    setScreenToken(readScreenToken());
   }, []);
 
   // Kunci stabil: hanya berubah bila daftar pengumuman suara benar-benar berubah.
@@ -466,25 +440,6 @@ export function SignageScreen() {
     );
   }
 
-  async function handleClaimScreen(event: React.FormEvent) {
-    event.preventDefault();
-    setPairingBusy(true);
-    setPairingError(null);
-    try {
-      await claimScreenToken(pairingInput.trim().toUpperCase());
-      setScreenToken(readScreenToken());
-      await refresh();
-      setShowPairing(false);
-      setPairingInput("");
-    } catch (claimError) {
-      setPairingError(
-        claimError instanceof Error ? claimError.message : "Gagal memasangkan perangkat.",
-      );
-    } finally {
-      setPairingBusy(false);
-    }
-  }
-
   return (
     <main className="relative flex h-screen w-screen select-none flex-col overflow-hidden bg-[#030712] text-white perspective-1000">
       <SignageAttendancePopup
@@ -507,68 +462,6 @@ export function SignageScreen() {
         {audioEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
         {audioStarting ? "Menyiapkan Audio..." : audioEnabled ? "Audio Aktif" : "Aktifkan Audio"}
       </button>
-
-
-      {/* Pairing perangkat: presensi baru aktif setelah layar punya token */}
-      {!screenToken ? (
-        <div className="fixed bottom-2 left-1/2 z-[60] -translate-x-1/2">
-          {showPairing ? (
-            <form
-              onSubmit={handleClaimScreen}
-              className="flex items-center gap-2 rounded-2xl border border-cyan-400/60 bg-slate-950/95 px-3 py-2 shadow-[0_0_25px_rgba(6,182,212,.35)] backdrop-blur-md"
-            >
-              <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">
-                Kode Pairing
-              </span>
-              <input
-                value={pairingInput}
-                onChange={(inputEvent) => setPairingInput(inputEvent.target.value.toUpperCase())}
-                maxLength={6}
-                autoFocus
-                placeholder="482913"
-                className="w-28 rounded-md border border-cyan-400/40 bg-slate-900 px-2 py-1 text-center font-mono text-sm font-black tracking-widest text-white outline-none"
-              />
-              <button
-                type="submit"
-                disabled={pairingBusy || pairingInput.trim().length < 4}
-                className="rounded-md bg-cyan-500 px-3 py-1 text-[10px] font-black uppercase text-slate-950 disabled:opacity-50"
-              >
-                {pairingBusy ? "Memasangkan..." : "Pasangkan"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPairing(false);
-                  setPairingError(null);
-                }}
-                className="rounded-md border border-white/20 px-2 py-1 text-[10px] font-black uppercase text-slate-300"
-              >
-                Tutup
-              </button>
-              {pairingError ? (
-                <span className="max-w-[16rem] text-[10px] font-bold text-rose-300">{pairingError}</span>
-              ) : null}
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowPairing(true)}
-              className="flex items-center gap-2.5 rounded-2xl border-2 border-amber-400/80 bg-slate-950/95 px-4 py-2 text-left backdrop-blur-md shadow-[0_0_25px_rgba(251,191,36,.45)] transition-all hover:scale-105 animate-pulse"
-              title="Masukkan kode pairing agar notifikasi presensi siswa aktif di layar ini"
-            >
-              <ShieldAlert className="h-5 w-5 shrink-0 text-amber-300" />
-              <span className="leading-tight">
-                <span className="block text-xs font-black uppercase tracking-wider text-amber-300">
-                  Layar belum dipasangkan
-                </span>
-                <span className="block text-[11px] font-semibold text-slate-300">
-                  Notifikasi tap presensi siswa belum aktif. Klik untuk isi kode pairing.
-                </span>
-              </span>
-            </button>
-          )}
-        </div>
-      ) : null}
 
       {/* Interactive 3D Spatial Canvas Background */}
       <Canvas3DBackdrop />

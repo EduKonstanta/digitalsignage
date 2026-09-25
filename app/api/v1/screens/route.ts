@@ -2,9 +2,8 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { apiSuccess, apiError } from "@/lib/api-response";
-import { requireAdmin, hashToken } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
-import { PAIRING_CODE_EXPIRY_MINUTES } from "@/lib/constants";
 import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
 import { z } from "zod";
 
@@ -15,10 +14,6 @@ const screenSchema = z.object({
   resolution: z.string().default("1920x1080"),
   orientation: z.enum(["LANDSCAPE", "PORTRAIT"]).default("LANDSCAPE"),
 });
-
-function generatePairingCode() {
-  return String(crypto.randomInt(100000, 999999));
-}
 
 export async function GET() {
   try {
@@ -64,7 +59,6 @@ export async function POST(req: NextRequest) {
       if (!room) return apiError("Ruangan tidak ditemukan", "ROOM_NOT_FOUND", 404);
     }
 
-    const pairingCode = generatePairingCode();
     const deviceId = `SCR-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
 
     const screen = await db.screen.create({
@@ -75,9 +69,8 @@ export async function POST(req: NextRequest) {
         roomId: validated.roomId,
         resolution: validated.resolution,
         orientation: validated.orientation,
-        status: "UNPAIRED",
-        pairingCodeHash: hashToken(pairingCode),
-        pairingExpiresAt: new Date(Date.now() + PAIRING_CODE_EXPIRY_MINUTES * 60 * 1000),
+        // Baru jadi ONLINE saat TV membuka /display?screen=<deviceId> pertama kali.
+        status: "OFFLINE",
       },
     });
     const enriched = { ...screen, branch, room };
@@ -90,8 +83,7 @@ export async function POST(req: NextRequest) {
       after: enriched,
     });
 
-    // pairingCode is only ever returned here, in plaintext, once.
-    return apiSuccess({ ...enriched, pairingCode }, undefined, 201);
+    return apiSuccess(enriched, undefined, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return apiError("Validasi gagal", "VALIDATION_ERROR", 400, error.issues);

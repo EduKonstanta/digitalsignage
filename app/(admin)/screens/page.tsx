@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Search,
   Radio,
-  QrCode,
+  Link2,
   Trash2,
   LoaderCircle,
   Tv,
@@ -22,6 +22,7 @@ import { ErrorState } from "@/components/feedback/error-state";
 
 interface ScreenRecord {
   id: string;
+  deviceId: string;
   name: string;
   status: string;
   resolution: string;
@@ -50,7 +51,12 @@ interface ApiResponse<T> {
 interface CreatedScreen {
   id: string;
   name: string;
-  pairingCode: string;
+  deviceId: string;
+}
+
+/** Alamat yang dibuka di browser TV; parameter screen memilih layar terdaftar. */
+function displayUrl(deviceId: string) {
+  return `${window.location.origin}/display?screen=${encodeURIComponent(deviceId)}`;
 }
 
 function formatLastSeen(value: string | null) {
@@ -69,7 +75,7 @@ export default function ScreensPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [pairingId, setPairingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Tambah Layar (modal)
   const [showAddModal, setShowAddModal] = useState(false);
@@ -84,8 +90,8 @@ export default function ScreensPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedScreen | null>(null);
 
-  // Panduan pairing (modal). Kode ditukar di perangkat TV, bukan di sini.
-  const [showPairModal, setShowPairModal] = useState(false);
+  // Panduan memasang layar (modal).
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   async function loadScreens() {
     setIsLoading(true);
@@ -165,13 +171,12 @@ export default function ScreensPage() {
     }
   }
 
-  function openPairModal() {
-    setShowPairModal(true);
+  function openGuideModal() {
+    setShowGuideModal(true);
   }
 
-  function closePairModal() {
-    setShowPairModal(false);
-    void loadScreens();
+  function closeGuideModal() {
+    setShowGuideModal(false);
   }
 
   async function handleDelete(screen: ScreenRecord) {
@@ -191,54 +196,13 @@ export default function ScreensPage() {
     }
   }
 
-  async function handleGeneratePairing(screen: ScreenRecord) {
-    if (
-      screen.status === "ONLINE" &&
-      !window.confirm(`Pasangkan ulang layar "${screen.name}"? Koneksi TV lama akan dicabut.`)
-    ) {
-      return;
-    }
-
-    /**
-     * Kode boleh ditentukan sendiri. Kode pilihan sendiri dibuat permanen: tidak
-     * kedaluwarsa dan tidak hangus setelah dipakai, sehingga TV yang sama bisa
-     * dipasang ulang berkali-kali tanpa membuat kode baru tiap kali.
-     */
-    const typed = window
-      .prompt(
-        `Kode pairing untuk "${screen.name}".\n\n` +
-          "Isi 6 angka pilihan sendiri (contoh 202235) — kode itu berlaku selamanya " +
-          "dan bisa dipakai ulang.\n\n" +
-          "Kosongkan untuk kode acak sekali pakai yang hangus dalam 15 menit.",
-        "",
-      )
-      ?.trim();
-
-    if (typed === undefined) return; // dibatalkan
-
-    if (typed && !/^\d{6}$/.test(typed)) {
-      setError("Kode pairing harus tepat 6 angka.");
-      return;
-    }
-
-    setPairingId(screen.id);
-    setError(null);
+  async function copyDisplayUrl(id: string, deviceId: string) {
     try {
-      const response = await fetch(`/api/v1/screens/${screen.id}/pairing-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(typed ? { pairingCode: typed, permanent: true } : {}),
-      });
-      const body = (await response.json()) as ApiResponse<CreatedScreen>;
-      if (!response.ok || !body.success) {
-        throw new Error(body.error?.message ?? "Gagal membuat kode pairing.");
-      }
-      setCreated(body.data);
-      setShowAddModal(true);
-    } catch (pairingError) {
-      setError(pairingError instanceof Error ? pairingError.message : "Gagal membuat kode pairing.");
-    } finally {
-      setPairingId(null);
+      await navigator.clipboard.writeText(displayUrl(deviceId));
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 2000);
+    } catch {
+      setError("Gagal menyalin alamat. Salin manual dari kolom alamat.");
     }
   }
 
@@ -256,11 +220,11 @@ export default function ScreensPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Layar TV</h1>
-          <p className="text-sm text-muted-foreground">Status koneksi, pairing code, dan penugasan playlist TV display.</p>
+          <p className="text-sm text-muted-foreground">Status koneksi, alamat display, dan penugasan playlist TV display.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-2" onClick={openPairModal}>
-            <QrCode className="h-4 w-4" /> Cara Pasang Layar
+          <Button size="sm" variant="outline" className="gap-2" onClick={openGuideModal}>
+            <Link2 className="h-4 w-4" /> Cara Pasang Layar
           </Button>
           <Button size="sm" className="gap-2" onClick={openAddModal}>
             <Tv className="h-4 w-4" /> Tambah Layar TV
@@ -324,15 +288,14 @@ export default function ScreensPage() {
                   variant="outline"
                   size="sm"
                   className="w-full mt-2 gap-1.5"
-                  disabled={pairingId === s.id}
-                  onClick={() => void handleGeneratePairing(s)}
+                  onClick={() => void copyDisplayUrl(s.id, s.deviceId)}
                 >
-                  {pairingId === s.id ? (
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  {copiedId === s.id ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                   ) : (
-                    <QrCode className="h-3.5 w-3.5" />
+                    <Copy className="h-3.5 w-3.5" />
                   )}
-                  {s.status === "ONLINE" ? "Pasangkan Ulang" : "Kode Pairing"}
+                  {copiedId === s.id ? "Alamat Tersalin" : "Salin Alamat Display"}
                 </Button>
                 <Button
                   type="button"
@@ -363,22 +326,22 @@ export default function ScreensPage() {
               <div className="space-y-4 text-center">
                 <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto" />
                 <div>
-                  <h2 className="text-lg font-bold text-foreground">Layar &ldquo;{created.name}&rdquo; Siap Dipasangkan</h2>
+                  <h2 className="text-lg font-bold text-foreground">Layar &ldquo;{created.name}&rdquo; Terdaftar</h2>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Buka halaman Display di perangkat TV, klik &ldquo;Pasangkan Layar&rdquo;, lalu
-                    masukkan kode ini dalam 15 menit. Kode harus diketik di TV-nya, bukan di sini.
+                    Buka alamat di bawah ini di browser perangkat TV. Tidak perlu kode atau
+                    pairing: notifikasi presensi siswa langsung tampil di layar.
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 py-4">
-                  <span className="font-mono text-3xl font-black tracking-[0.3em] text-primary">
-                    {created.pairingCode}
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-4">
+                  <span className="break-all font-mono text-sm font-bold text-primary">
+                    {displayUrl(created.deviceId)}
                   </span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigator.clipboard.writeText(created.pairingCode)}
-                    aria-label="Salin kode"
+                    onClick={() => navigator.clipboard.writeText(displayUrl(created.deviceId))}
+                    aria-label="Salin alamat"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -498,20 +461,20 @@ export default function ScreensPage() {
       ) : null}
 
       {/* Modal: Panduan pasang layar */}
-      {showPairModal ? (
+      {showGuideModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className="h-9 w-9 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
-                  <QrCode className="h-4 w-4" />
+                  <Link2 className="h-4 w-4" />
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-foreground">Cara Memasang Layar TV</h2>
-                  <p className="text-[11px] text-muted-foreground">Kode dimasukkan di perangkat TV.</p>
+                  <p className="text-[11px] text-muted-foreground">Cukup buka alamat di browser TV.</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={closePairModal}>
+              <Button variant="ghost" size="icon" onClick={closeGuideModal}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -520,31 +483,33 @@ export default function ScreensPage() {
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">1</span>
                 <span>
-                  Klik <strong className="text-foreground">Tambah Layar TV</strong> di halaman ini untuk
-                  mendapatkan kode pairing 6 digit.
+                  Klik <strong className="text-foreground">Tambah Layar TV</strong> di halaman ini, lalu
+                  isi nama, cabang, dan ruangan.
                 </span>
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">2</span>
                 <span>
-                  Di perangkat TV, buka alamat <code className="font-mono text-foreground">/display</code>.
+                  Klik <strong className="text-foreground">Salin Alamat Display</strong> pada kartu layar
+                  tersebut. Alamatnya berbentuk <code className="font-mono text-foreground">/display?screen=SCR-…</code>.
                 </span>
               </li>
               <li className="flex gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">3</span>
                 <span>
-                  Klik tombol <strong className="text-foreground">Pasangkan Layar</strong> di bagian bawah
-                  layar TV, masukkan kodenya, lalu tekan Pasangkan.
+                  Buka alamat itu di browser TV, lalu klik{" "}
+                  <strong className="text-foreground">Aktifkan Audio</strong> satu kali.
                 </span>
               </li>
             </ol>
 
             <div className="rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200">
-              Kode harus diketik di perangkat TV karena token keamanannya disimpan di perangkat itu.
-              Tanpa langkah ini, notifikasi presensi siswa tidak akan tampil di layar tersebut.
+              Notifikasi tap kartu siswa tampil di semua layar yang membuka /display. Parameter{" "}
+              <code className="font-mono">?screen=</code> hanya menentukan nama, cabang, jadwal, dan
+              playlist layar itu, dan membuat statusnya tampil ONLINE di sini.
             </div>
 
-            <Button className="w-full" onClick={closePairModal}>
+            <Button className="w-full" onClick={closeGuideModal}>
               Mengerti
             </Button>
           </div>

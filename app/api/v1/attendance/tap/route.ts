@@ -186,14 +186,16 @@ export async function POST(req: NextRequest) {
       nis: student.nis,
       className: student.className,
       voiceGender: student.voiceGender as "AUTO" | "MALE" | "FEMALE",
-      cardUid: student.cardUid,
+      // Event ini dibaca /display tanpa login, jadi UID kartu fisik dan nomor
+      // telepon tidak ikut dipancarkan (sama seperti /attendance/latest).
+      cardUid: null,
       photoUrl: student.photoUrl,
       type: attendanceType,
       timestamp: now.toISOString(),
       timeFormatted,
       deviceId,
       fonnteStatus,
-      parentPhone: parentPhone ? `${parentPhone.slice(0, 4)}****${parentPhone.slice(-3)}` : null,
+      parentPhone: null,
     });
 
     if (fonnteConfig.isEnabled && fonnteConfig.token && parentPhone) {

@@ -3,7 +3,8 @@ import { computeScheduleStatus } from "@/domain/schedule-status";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { db } from "@/lib/db";
 import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
-import { getScreenFromRequest, SCREEN_TOKEN_HEADER } from "@/lib/screen-auth";
+import { SCREEN_QUERY_PARAM } from "@/lib/constants";
+import { markScreenSeen } from "@/lib/screen-heartbeat";
 
 // Default tampilan header TV kalau admin belum pernah mengisi Sistem > Pengaturan Umum.
 const DEFAULT_DISPLAY_APP_NAME = "KONSTANTA EDUCATION";
@@ -30,15 +31,15 @@ export async function GET(req: NextRequest) {
     const dayStart = new Date(`${dateKey}T00:00:00+07:00`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-    const suppliedScreenToken = req.headers.get(SCREEN_TOKEN_HEADER);
-    const pairedScreen = await getScreenFromRequest(req);
-    if (suppliedScreenToken && !pairedScreen) {
-      return apiError("Token layar tidak valid atau sudah dicabut", "SCREEN_UNAUTHORIZED", 401);
-    }
-
-    const screen = pairedScreen
-      ? await db.screen.findUnique({
-          where: { id: pairedScreen.id },
+    /**
+     * TV mengenalkan diri lewat /display?screen=<deviceId>. Tanpa parameter itu,
+     * atau dengan deviceId yang tidak dikenal/sudah dihapus, layar tetap tampil
+     * dengan konten bawaan supaya TV tidak pernah kosong.
+     */
+    const deviceId = new URL(req.url).searchParams.get(SCREEN_QUERY_PARAM)?.trim();
+    const screen = deviceId
+      ? await db.screen.findFirst({
+          where: { deviceId, revokedAt: null },
           include: {
             playlist: {
               include: {
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
           },
         })
       : null;
+    if (screen) await markScreenSeen(screen);
     const playlistMediaIds = screen?.playlist
       ? screen.playlist.items
           .filter((item) => item.contentType === "MEDIA")

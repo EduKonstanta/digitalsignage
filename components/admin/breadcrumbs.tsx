@@ -26,7 +26,6 @@ const ROUTE_LABELS: Record<string, string> = {
   templates: "Template",
   playlists: "Playlist",
   screens: "Layar TV",
-  pairing: "Pairing",
   integrations: "Integrasi",
   emergency: "Emergency Broadcast",
   preview: "Simulasi Preview",

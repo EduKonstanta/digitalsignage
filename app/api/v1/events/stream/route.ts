@@ -1,24 +1,12 @@
 import { NextRequest } from "next/server";
 import { attendanceEmitter, AttendanceTapEvent } from "@/lib/attendance-events";
-import { apiError } from "@/lib/api-response";
-import { requireAdmin } from "@/lib/auth";
-import { getScreenFromRequest } from "@/lib/screen-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Dibaca langsung oleh halaman /display tanpa login atau pairing. Event yang
+// dipancarkan route tap sudah dibersihkan dari UID kartu dan nomor telepon.
 export async function GET(req: NextRequest) {
-  // Stream ini mengirim data presensi siswa, jadi hanya untuk layar yang sudah
-  // dipasangkan atau admin yang login. EventSource tidak bisa mengirim header
-  // kustom, sehingga token boleh lewat query ?screenToken=.
-  const screen = await getScreenFromRequest(req);
-  if (!screen) {
-    const admin = await requireAdmin();
-    if (!admin) {
-      return apiError("Layar belum dipasangkan", "SCREEN_UNAUTHORIZED", 401);
-    }
-  }
-
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();

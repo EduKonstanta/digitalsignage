@@ -23,7 +23,10 @@ export const COMPUTED_SCHEDULE_STATUS_COLORS = {
 
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
 export const DEFAULT_SSE_RECONNECT_MS = 5000;
-export const PAIRING_CODE_EXPIRY_MINUTES = 15;
 
-/** Header token perangkat layar TV (dipakai sisi klien dan server). */
-export const SCREEN_TOKEN_HEADER = "x-screen-token";
+/**
+ * Parameter query yang memberi tahu server layar terdaftar mana yang sedang
+ * membuka /display, mis. /display?screen=SCR-1A2B3C4D5E. Berisi deviceId layar,
+ * bukan rahasia: tampilan TV memang publik.
+ */
+export const SCREEN_QUERY_PARAM = "screen";
