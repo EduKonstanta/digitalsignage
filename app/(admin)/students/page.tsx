@@ -1,6 +1,9 @@
 "use client";
 
-import { BadgeCheck, CreditCard, UserRound, Users } from "lucide-react";
+import { useState } from "react";
+import { BadgeCheck, CreditCard, Upload, UserRound, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { StudentImportModal } from "@/components/admin/student-import-modal";
 import {
   CrudFormValue,
   MasterCrudPage,
@@ -22,8 +25,26 @@ interface StudentForm {
 }
 
 export default function StudentsPage() {
+  const [showImport, setShowImport] = useState(false);
+  // Dinaikkan setelah impor agar MasterCrudPage memuat ulang daftarnya.
+  const [refreshKey, setRefreshKey] = useState(0);
+
   return (
-    <MasterCrudPage<Student, StudentForm>
+    <>
+      {showImport ? (
+        <StudentImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => setRefreshKey((current) => current + 1)}
+        />
+      ) : null}
+
+      <MasterCrudPage<Student, StudentForm>
+      refreshKey={refreshKey}
+      headerActions={
+        <Button size="sm" variant="outline" className="gap-2" onClick={() => setShowImport(true)}>
+          <Upload className="h-4 w-4" /> Impor CSV
+        </Button>
+      }
       title="Data Siswa"
       description="Daftarkan nama siswa dan UID kartu RFID untuk menampilkan notifikasi tap pada Digital Signage."
       entityLabel="Siswa"
@@ -95,6 +116,7 @@ export default function StudentsPage() {
       })}
       getSearchText={(student) => `${student.name} ${student.cardUid ?? ""}`}
       getRecordLabel={(student) => student.name}
-    />
+      />
+    </>
   );
 }

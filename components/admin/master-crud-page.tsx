@@ -75,6 +75,8 @@ interface MasterCrudPageProps<T extends { id: string }, F extends CrudFormValues
   canCreate?: boolean;
   createDisabledMessage?: string;
   renderExtraActions?: (record: T) => ReactNode;
+  /** Tombol tambahan di samping "Tambah", misalnya impor massal. */
+  headerActions?: ReactNode;
   refreshKey?: string | number;
   readOnly?: boolean;
   sourceUrl?: string;
@@ -97,6 +99,7 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
   canCreate = true,
   createDisabledMessage,
   renderExtraActions,
+  headerActions,
   refreshKey,
   readOnly = false,
   sourceUrl,
@@ -257,6 +260,7 @@ export function MasterCrudPage<T extends { id: string }, F extends CrudFormValue
               </Button>
             </a>
           ) : null}
+          {!readOnly ? headerActions : null}
           {!readOnly ? (
             <Button size="sm" className="gap-2" onClick={showForm ? closeForm : openCreateForm}>
               {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
