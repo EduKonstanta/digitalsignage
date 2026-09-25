@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGender, normalizePhone, parseStudentCsv } from "@/lib/student-import";
+import { FIELD_LABELS, normalizeGender, normalizePhone, parseStudentCsv } from "@/lib/student-import";
 
 describe("normalizePhone", () => {
   it("mengubah awalan 0 menjadi 62", () => {
@@ -123,5 +123,21 @@ describe("parseStudentCsv", () => {
     const result = parseStudentCsv("   ");
     expect(result.rows).toEqual([]);
     expect(result.missingRequired).toEqual(["name"]);
+  });
+});
+
+describe("label kolom modal impor", () => {
+  it("setiap label yang ditampilkan dikenali sebagai kolomnya sendiri", () => {
+    const fields = Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[];
+    const header = fields.map((field) => FIELD_LABELS[field]).join(",");
+    const result = parseStudentCsv(`${header}\n${fields.map(() => "x").join(",")}`);
+    for (const [index, field] of fields.entries()) {
+      expect(result.mapping[field]).toBe(index);
+    }
+  });
+
+  it("mengenali kolom L/P sebagai gender suara", () => {
+    const result = parseStudentCsv("Nama,L/P\nRaka,L\nSiti,P");
+    expect(result.rows.map((row) => row.voiceGender)).toEqual(["MALE", "FEMALE"]);
   });
 });

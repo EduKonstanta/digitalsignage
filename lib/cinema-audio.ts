@@ -91,6 +91,23 @@ export function resolvePitch(gender: SpeechGender, genderMatched: boolean) {
 export async function unlockSignageAudio() {
   if (typeof window === "undefined") return false;
   const context = getAudioContext();
+
+  // Browser TV sering mengunci Web Speech sampai `speak()` dipanggil langsung
+  // dari gesture remote/touch pertama. Ucapan hening ini hanya memancing mesin
+  // TTS, lalu langsung dibatalkan sehingga pengguna tidak mendengar apa pun.
+  if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0;
+      window.speechSynthesis.speak(primer);
+      window.speechSynthesis.cancel();
+    } catch {
+      // AudioContext masih dapat dipakai untuk chime/audio file bila TTS TV gagal.
+    }
+  }
+
   if (context?.state === "suspended") await context.resume();
   window.speechSynthesis?.resume();
   const enabled = !context || context.state === "running";

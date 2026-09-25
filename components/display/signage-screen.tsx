@@ -145,6 +145,7 @@ export function SignageScreen() {
   const [audioStarting, setAudioStarting] = useState(false);
   const [sseDelivered, setSseDelivered] = useState(false);
   const [latestTapEvent, setLatestTapEvent] = useState<AttendanceTapEvent | null>(null);
+  const audioUnlocking = useRef(false);
   const playedVoiceIds = useRef(new Set<string>());
   const spokenStartingSoonIds = useRef(new Set<string>());
   const seenAttendanceIds = useRef(new Set<string>());
@@ -209,12 +210,14 @@ export function SignageScreen() {
     window.setTimeout(pumpAttendanceQueue, 400);
   }, [pumpAttendanceQueue]);
 
-  const enableAudio = useCallback(async () => {
+  const enableAudio = useCallback(async (announceReady = false) => {
+    if (audioUnlocking.current) return;
+    audioUnlocking.current = true;
     setAudioStarting(true);
     try {
       const enabled = await unlockSignageAudio();
       setAudioEnabled(enabled);
-      if (enabled) {
+      if (enabled && announceReady) {
         await triggerGenZAnnouncement("Audio digital signage aktif. Voice announcement siap digunakan.", {
           gender: "FEMALE",
           rate: 1.02,
@@ -222,8 +225,28 @@ export function SignageScreen() {
       }
     } finally {
       setAudioStarting(false);
+      audioUnlocking.current = false;
     }
   }, []);
+
+  // TV browser kerap hanya menerima event tombol remote (keydown), bukan klik
+  // pada tombol kecil di layar. Gesture pertama apa pun kini mengaktifkan
+  // audio, tanpa memutar pesan uji yang mengganggu tampilan awal.
+  useEffect(() => {
+    if (audioEnabled) return;
+
+    const activateFromGesture = () => {
+      void enableAudio(false);
+    };
+    const options = { capture: true, passive: true } as const;
+
+    window.addEventListener("pointerdown", activateFromGesture, options);
+    window.addEventListener("keydown", activateFromGesture, options);
+    return () => {
+      window.removeEventListener("pointerdown", activateFromGesture, options);
+      window.removeEventListener("keydown", activateFromGesture, options);
+    };
+  }, [audioEnabled, enableAudio]);
 
   useEffect(() => {
     const eventSource = new EventSource("/api/v1/events/stream");
@@ -472,7 +495,7 @@ export function SignageScreen() {
 
       <button
         type="button"
-        onClick={() => void enableAudio()}
+        onClick={() => void enableAudio(true)}
         disabled={audioStarting}
         className={`fixed bottom-2 left-4 z-[60] flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all hover:scale-105 disabled:opacity-60 ${
           audioEnabled

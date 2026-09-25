@@ -48,13 +48,18 @@ const FIELD_ALIASES: Record<StudentFieldKey, string[]> = {
   name: ["nama", "nama lengkap", "nama siswa", "siswa", "name", "student name", "full name"],
   className: ["kelas", "rombel", "rombongan belajar", "class", "kelompok", "grade", "tingkat"],
   cardUid: ["uid", "rfid", "uid kartu", "kartu", "no kartu", "nomor kartu", "card", "card uid", "tag", "tag id"],
-  parentName: ["nama ortu", "orang tua", "ortu", "wali", "nama wali", "parent", "parent name", "nama orang tua"],
+  parentName: [
+    "nama ortu", "orang tua", "ortu", "wali", "nama wali", "parent", "parent name", "nama orang tua",
+    // Label kolom yang ditampilkan modal impor sendiri ("Nama Ortu/Wali").
+    "nama ortu wali", "ortu wali", "orang tua wali",
+  ],
   parentPhone: [
     "wa ortu", "whatsapp ortu", "no wa ortu", "hp ortu", "no hp ortu", "telepon ortu",
     "nomor ortu", "wa wali", "hp wali", "no wa", "whatsapp", "wa", "parent phone", "no telepon ortu",
   ],
   studentPhone: ["hp siswa", "no hp siswa", "telepon siswa", "wa siswa", "student phone", "no hp"],
-  voiceGender: ["gender", "jenis kelamin", "jk", "l/p", "kelamin", "sex"],
+  // "gender suara" adalah label kolom di modal impor; "l p" adalah "L/P" setelah dinormalkan.
+  voiceGender: ["gender", "gender suara", "suara", "jenis kelamin", "jk", "l p", "kelamin", "sex"],
 };
 
 export interface ParsedStudentRow {
