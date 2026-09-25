@@ -156,7 +156,7 @@ export async function sendFonnteWhatsApp(params: {
       detail?: string;
       reason?: string;
       process?: string;
-      id?: string[];
+      id?: Array<string | number>;
       target?: string[];
     };
 
@@ -164,7 +164,8 @@ export async function sendFonnteWhatsApp(params: {
       return {
         success: true,
         status: "QUEUED",
-        messageId: body.id?.[0],
+        // Kolom fonnteMessageId bertipe String; id numerik akan ditolak Prisma.
+        messageId: body.id?.[0] === undefined ? undefined : String(body.id[0]),
         response: body,
       };
     } else {

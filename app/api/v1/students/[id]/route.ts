@@ -2,9 +2,16 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
+import { canonicalCardUid, findCardConflict } from "@/lib/card-uid";
 import { logActivity } from "@/lib/activity-log";
 
 export const dynamic = "force-dynamic";
+
+/** Nilai opsional dari body JSON; bukan string (mis. angka) tidak lagi membuat .trim() melempar. */
+function optionalText(value: unknown) {
+  if (value === undefined || value === null) return null;
+  return String(value).trim() || null;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -82,7 +89,7 @@ async function updateStudent(
       return apiError("Nama wajib diisi", "VALIDATION_ERROR", 400);
     }
 
-    if (cardUid !== undefined && !String(cardUid).trim()) {
+    if (cardUid !== undefined && !canonicalCardUid(String(cardUid ?? ""))) {
       return apiError("UID kartu RFID wajib diisi", "VALIDATION_ERROR", 400);
     }
 
@@ -90,23 +97,27 @@ async function updateStudent(
       return apiError("Kelas/Rombel wajib diisi", "VALIDATION_ERROR", 400);
     }
 
+    const trimmedNis = nis === undefined ? undefined : String(nis).trim();
+
     // Check duplicate NIS if changed
-    if (nis && nis.trim() !== existing.nis) {
+    if (trimmedNis && trimmedNis !== existing.nis) {
       const duplicateNis = await db.student.findUnique({
-        where: { nis: nis.trim() },
+        where: { nis: trimmedNis },
       });
       if (duplicateNis) {
         return apiError(`NIS ${nis} sudah digunakan oleh siswa lain`, "DUPLICATE_NIS", 409);
       }
     }
 
-    // Check duplicate card UID if changed
-    const trimmedCard = cardUid === undefined ? undefined : String(cardUid).trim();
-    if (trimmedCard && trimmedCard !== existing.cardUid) {
-      const duplicateCard = await db.student.findUnique({
-        where: { cardUid: trimmedCard },
+    // Disimpan kanonik dan dicek duplikat secara kanonik, sama seperti route tap.
+    const trimmedCard = cardUid === undefined ? undefined : canonicalCardUid(String(cardUid));
+    if (trimmedCard) {
+      const cardHolders = await db.student.findMany({
+        where: { cardUid: { not: null } },
+        select: { id: true, cardUid: true },
       });
-      if (duplicateCard && duplicateCard.id !== id) {
+      const duplicateCard = findCardConflict(cardHolders, trimmedCard, id);
+      if (duplicateCard) {
         return apiError(
           `UID Kartu ${trimmedCard} sudah digunakan oleh siswa lain`,
           "DUPLICATE_CARD_UID",
@@ -128,16 +139,16 @@ async function updateStudent(
     const updated = await db.student.update({
       where: { id },
       data: {
-        ...(nis !== undefined ? { nis: nis.trim() } : {}),
-        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(trimmedNis !== undefined ? { nis: trimmedNis } : {}),
+        ...(name !== undefined ? { name: String(name).trim() } : {}),
         ...(cardUid !== undefined ? { cardUid: trimmedCard || null } : {}),
-        ...(className !== undefined ? { className: className.trim() } : {}),
+        ...(className !== undefined ? { className: String(className).trim() } : {}),
         ...(normalizedVoiceGender !== undefined ? { voiceGender: normalizedVoiceGender } : {}),
         ...(branchId !== undefined ? { branchId: branchId || null } : {}),
-        ...(parentName !== undefined ? { parentName: parentName?.trim() || null } : {}),
-        ...(parentPhone !== undefined ? { parentPhone: parentPhone?.trim() || null } : {}),
-        ...(studentPhone !== undefined ? { studentPhone: studentPhone?.trim() || null } : {}),
-        ...(photoUrl !== undefined ? { photoUrl: photoUrl?.trim() || null } : {}),
+        ...(parentName !== undefined ? { parentName: optionalText(parentName) } : {}),
+        ...(parentPhone !== undefined ? { parentPhone: optionalText(parentPhone) } : {}),
+        ...(studentPhone !== undefined ? { studentPhone: optionalText(studentPhone) } : {}),
+        ...(photoUrl !== undefined ? { photoUrl: optionalText(photoUrl) } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
       },
     });

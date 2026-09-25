@@ -8,6 +8,26 @@ import { db } from "@/lib/db";
  */
 const LAST_SEEN_THROTTLE_MS = 60 * 1000;
 
+/**
+ * Batas layar dianggap mati. Kolom `status` hanya pernah ditulis ONLINE (saat
+ * TV membuka /display) dan tidak ada yang menurunkannya lagi, jadi TV yang
+ * dimatikan tetap tercatat ONLINE selamanya. Status sebenarnya diturunkan dari
+ * `lastSeenAt`: display me-refresh tiap 30 detik dan penulisan dibatasi tiap
+ * 60 detik, sehingga 3 menit memberi ruang untuk dua kali refresh yang gagal.
+ */
+export const SCREEN_OFFLINE_AFTER_MS = 3 * 60 * 1000;
+
+export function effectiveScreenStatus(
+  screen: { status: string; lastSeenAt: Date | null },
+  now = Date.now(),
+): string {
+  if (screen.status !== "ONLINE") return screen.status;
+  if (!screen.lastSeenAt || now - screen.lastSeenAt.getTime() > SCREEN_OFFLINE_AFTER_MS) {
+    return "OFFLINE";
+  }
+  return "ONLINE";
+}
+
 /** Catat bahwa layar terdaftar ini baru saja membuka /display. */
 export async function markScreenSeen(screen: {
   id: string;

@@ -21,7 +21,7 @@ export async function GET() {
 
     const [live, screens] = await Promise.all([
       getLiveAcademicData(),
-      db.screen.findMany({ select: { branchId: true } }),
+      db.screen.findMany({ where: { revokedAt: null }, select: { branchId: true } }),
     ]);
 
     const branches = live.branches

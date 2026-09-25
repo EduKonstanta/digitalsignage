@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { broadcastAttendanceTap } from "@/lib/attendance-events";
 import { isAuthorizedAttendanceDevice } from "@/lib/attendance-auth";
-import { displayCardUid, findByCardUid } from "@/lib/card-uid";
+import { canonicalCardUid, displayCardUid, findByCardUid } from "@/lib/card-uid";
 import {
   formatAttendanceMessage,
   getFonnteConfig,
@@ -81,7 +81,9 @@ export async function POST(req: NextRequest) {
     let student = await db.student.findFirst({
       where: {
         OR: [
-          ...(trimmedCard ? [{ cardUid: trimmedCard }] : []),
+          ...(trimmedCard
+            ? [{ cardUid: trimmedCard }, { cardUid: canonicalCardUid(trimmedCard) }]
+            : []),
           ...(trimmedNis ? [{ nis: trimmedNis }] : []),
         ],
         isActive: true,
@@ -277,16 +279,21 @@ export async function POST(req: NextRequest) {
       fonnteStatus = waResult.success ? "QUEUED" : "FAILED";
       fonnteError = waResult.error;
 
-      // Update Attendance Log with Fonnte Status
-      await db.attendanceLog.update({
-        where: { id: attendance.id },
-        data: {
-          fonnteStatus,
-          fonnteMessageId: waResult.messageId,
-          fonnteResponse: waResult.response ? JSON.stringify(waResult.response) : waResult.error,
-          fonnteUpdatedAt: new Date(),
-        },
-      });
+      // Presensinya sudah tercatat dan tampil di TV. Gagal menyimpan status
+      // WhatsApp tidak boleh membuat pembaca kartu menerima 500 dan mengulang tap.
+      try {
+        await db.attendanceLog.update({
+          where: { id: attendance.id },
+          data: {
+            fonnteStatus,
+            fonnteMessageId: waResult.messageId,
+            fonnteResponse: waResult.response ? JSON.stringify(waResult.response) : waResult.error,
+            fonnteUpdatedAt: new Date(),
+          },
+        });
+      } catch (updateError) {
+        console.error("Gagal menyimpan status Fonnte untuk presensi", attendance.id, updateError);
+      }
     }
 
     return apiSuccess({

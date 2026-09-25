@@ -24,6 +24,32 @@ export function displayCardUid(value: string | null | undefined): string | null 
 }
 
 /**
+ * Siswa lain yang sudah memakai UID ini, dibandingkan dalam bentuk kanonik.
+ *
+ * Cek duplikat saat menyimpan harus memakai aturan yang sama dengan
+ * pencocokan saat tap. Kalau tidak, "97:8C:98:77" bisa didaftarkan ke siswa
+ * kedua padahal "978C9877" sudah dipakai, lalu kedua kartu ditolak saat tap
+ * karena pencocokannya ambigu.
+ */
+export function findCardConflict<T extends { id: string; cardUid: string | null }>(
+  students: readonly T[],
+  uid: string,
+  excludeId?: string,
+): T | null {
+  const wanted = canonicalCardUid(uid);
+  if (!wanted) return null;
+
+  return (
+    students.find(
+      (student) =>
+        student.id !== excludeId &&
+        student.cardUid !== null &&
+        canonicalCardUid(student.cardUid) === wanted,
+    ) ?? null
+  );
+}
+
+/**
  * Cari pemilik kartu dengan membandingkan bentuk kanonik. Hasil hanya diberikan
  * bila tepat satu siswa yang cocok; dua kartu berbeda yang menyeragam ke UID
  * yang sama dianggap ambigu dan ditolak daripada salah mencatat presensi.

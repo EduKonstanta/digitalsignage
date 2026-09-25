@@ -347,4 +347,7 @@ itu, TV tetap jalan dengan konten bawaan (semua jadwal dan media terbit).
 
 Endpoint `/api/v1/attendance/latest` dan `/api/v1/events/stream` terbuka tanpa login
 karena dibaca langsung oleh `/display`. Keduanya hanya mengembalikan tap 2 menit
-terakhir, tanpa UID kartu dan tanpa nomor telepon.
+terakhir dan tidak memuat nomor telepon. UID kartu ikut dikirim agar tampil di popup
+TV: utuh bila panjangnya 8 karakter atau kurang (kartu MIFARE Classic 4 byte),
+disingkat bila lebih panjang. Artinya siapa pun yang tahu alamat `/display` bisa
+membaca UID 4 byte siswa yang baru tap.

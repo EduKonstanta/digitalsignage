@@ -8,6 +8,8 @@
  * sebelum data benar-benar disimpan.
  */
 
+import { canonicalCardUid } from "@/lib/card-uid";
+
 export type StudentFieldKey =
   | "nis"
   | "name"
@@ -223,7 +225,8 @@ export function parseStudentCsv(text: string): StudentCsvParseResult {
     const nis = cell(row, "nis");
     const name = cell(row, "name");
     const className = cell(row, "className");
-    const cardUid = cell(row, "cardUid");
+    // Bentuk kanonik supaya "04:aa:bb:cc" dan "04AABBCC" dikenali sebagai kartu yang sama.
+    const cardUid = canonicalCardUid(cell(row, "cardUid"));
     const errors: string[] = [];
     const warnings: string[] = [];
 

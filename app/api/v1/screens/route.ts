@@ -5,6 +5,7 @@ import { apiSuccess, apiError } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
 import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
+import { effectiveScreenStatus } from "@/lib/screen-heartbeat";
 import { z } from "zod";
 
 const screenSchema = z.object({
@@ -29,8 +30,10 @@ export async function GET() {
       getLiveAcademicData(),
     ]);
 
+    const now = Date.now();
     const enriched = screens.map((screen) => ({
       ...screen,
+      status: effectiveScreenStatus(screen, now),
       branch: live.branches.find((branch) => branch.id === screen.branchId) ?? null,
       room: screen.roomId ? (live.rooms.find((room) => room.id === screen.roomId) ?? null) : null,
     }));

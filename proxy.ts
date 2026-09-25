@@ -11,7 +11,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/constants";
  * lib/auth.ts's getAdminFromSession, used by the layout and every API
  * route) — it only short-circuits the common case of no cookie at all.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has(SESSION_COOKIE_NAME);
 
   if (!hasSession) {
@@ -34,7 +34,9 @@ export const config = {
     "/integrations/:path*",
     "/preview",
     "/emergency",
-    "/activity-logs",
-    "/settings",
+    // `:path*` juga cocok dengan path dasarnya, jadi subhalaman seperti
+    // /settings/general dan /settings/security ikut tersaring.
+    "/activity-logs/:path*",
+    "/settings/:path*",
   ],
 };

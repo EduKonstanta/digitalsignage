@@ -4,8 +4,9 @@ import { attendanceEmitter, AttendanceTapEvent } from "@/lib/attendance-events";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Dibaca langsung oleh halaman /display tanpa login. Event yang
-// dipancarkan route tap sudah dibersihkan dari UID kartu dan nomor telepon.
+// Dibaca langsung oleh halaman /display tanpa login. Event dari route tap tidak
+// memuat nomor telepon; UID kartu dikirim lewat displayCardUid (utuh bila <= 8
+// karakter, disingkat bila lebih panjang).
 export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {

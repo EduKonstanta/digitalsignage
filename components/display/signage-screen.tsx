@@ -14,7 +14,10 @@ import { SignageTicker } from "./signage-ticker";
 import { SignageWidgets } from "./signage-widgets";
 import { SignageAttendancePopup } from "./signage-attendance-popup";
 import { Canvas3DBackdrop } from "@/components/ui/canvas-3d-backdrop";
-import { formatPreClassAnnouncementText } from "@/lib/cinema-announcement";
+import {
+  formatPreClassAnnouncementText,
+  isPreClassReminderDue,
+} from "@/lib/cinema-announcement";
 import {
   pauseAllMedia,
   resumeAllMedia,
@@ -395,25 +398,38 @@ export function SignageScreen() {
       });
   }, [hasSynced, now, payload.schedules]);
 
-  // Find first session starting soon (10-15 minutes left)
-  const startingSoonSession = useMemo(() => {
-    return schedules.find((s) => s.computedStatus === "STARTING_SOON");
-  }, [schedules]);
+  // Status STARTING_SOON berlaku sejak H-15 menit, sedangkan pengingat
+  // visual dan audio ditampilkan pada jendela H-10 menit.
+  const preClassReminderSession = useMemo(() => {
+    if (!now) return undefined;
+    return schedules.find(
+      (schedule) =>
+        schedule.computedStatus === "STARTING_SOON" && isPreClassReminderDue(schedule.startAt, now),
+    );
+  }, [now, schedules]);
 
-  // Auto Gen-Z Announcement for Starting Soon Session
+  // Browser TV menolak suara otomatis sampai ada interaksi pengguna. Jangan
+  // tandai sesi sudah diucapkan sebelum audio benar-benar siap; saat tombol
+  // "Aktifkan Audio" ditekan dalam jendela H-10, efek ini akan mencoba lagi.
   useEffect(() => {
-    if (!startingSoonSession || spokenStartingSoonIds.current.has(startingSoonSession.id)) return;
+    if (
+      !audioEnabled ||
+      !preClassReminderSession ||
+      spokenStartingSoonIds.current.has(preClassReminderSession.id)
+    ) {
+      return;
+    }
 
-    rememberId(spokenStartingSoonIds.current, startingSoonSession.id);
+    rememberId(spokenStartingSoonIds.current, preClassReminderSession.id);
     const announcementText = formatPreClassAnnouncementText({
-      className: startingSoonSession.className,
-      subject: startingSoonSession.subject,
-      teacher: startingSoonSession.teacher,
-      room: startingSoonSession.room,
+      className: preClassReminderSession.className,
+      subject: preClassReminderSession.subject,
+      teacher: preClassReminderSession.teacher,
+      room: preClassReminderSession.room,
     });
 
     void triggerGenZAnnouncement(announcementText);
-  }, [startingSoonSession]);
+  }, [audioEnabled, preClassReminderSession]);
 
   if (payload.emergency) {
     const critical = payload.emergency.severity === "CRITICAL";
@@ -473,21 +489,21 @@ export function SignageScreen() {
       {!heavyPlayback && <Canvas3DBackdrop />}
 
       {/* Modern Gen-Z 10-Minute Pre-Class Alert Banner */}
-      {startingSoonSession && (
+      {preClassReminderSession && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3.5 rounded-2xl border-2 border-cyan-400 bg-slate-950/95 px-6 py-2.5 shadow-[0_0_40px_rgba(6,182,212,0.6)] backdrop-blur-xl animate-bounce">
           <Flame className="h-6 w-6 text-amber-400 shrink-0" />
           <div className="text-left max-w-2xl">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase tracking-widest text-cyan-300">
-                🔥 READY FOR CLASS? (10 MENIT LAGI)
+                PENGINGAT KELAS (10 MENIT LAGI)
               </span>
               <span className="inline-flex items-center gap-1 rounded bg-cyan-400 text-slate-950 px-2 py-0.5 text-[10px] font-black uppercase">
                 <Volume2 className="h-3 w-3" /> AUDIO ANNOUNCEMENT
               </span>
             </div>
             <p className="text-xs lg:text-sm font-bold text-white leading-tight mt-0.5">
-              Kelas <strong className="text-cyan-300">{startingSoonSession.subject}</strong> ({startingSoonSession.className}) bareng{" "}
-              <strong className="text-amber-300">{startingSoonSession.teacher}</strong> di {startingSoonSession.room} segera dimulai. Yuk siapin diri & bakar semangatmu!
+              Kelas <strong className="text-cyan-300">{preClassReminderSession.subject}</strong> ({preClassReminderSession.className}) bersama{" "}
+              <strong className="text-amber-300">{preClassReminderSession.teacher}</strong> di {preClassReminderSession.room} akan segera dimulai.
             </p>
           </div>
         </div>

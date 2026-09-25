@@ -6,16 +6,30 @@ export interface ScheduleAnnouncementData {
   startAt?: string;
 }
 
+/** Durasi sebelum kelas ketika pengumuman kesiapan kelas diputar. */
+export const PRE_CLASS_REMINDER_MINUTES = 10;
+
 /**
- * Modern, punchy, Gen-Z styled announcement for 10 minutes pre-class warning.
+ * True selama kelas berada dalam jendela pengingat. Batas bawah eksklusif
+ * mencegah pengumuman tetap diputar saat kelas sudah dimulai.
  */
+export function isPreClassReminderDue(
+  startAt: string | Date,
+  now = new Date(),
+  leadMinutes = PRE_CLASS_REMINDER_MINUTES,
+) {
+  const remainingMs = new Date(startAt).getTime() - now.getTime();
+  return remainingMs > 0 && remainingMs <= leadMinutes * 60 * 1000;
+}
+
+/** Pengumuman singkat dan jelas untuk pengingat sebelum kelas dimulai. */
 export function formatPreClassAnnouncementText(data: ScheduleAnnouncementData): string {
   const room = data.room || "Ruang Kelas";
   const subject = data.subject || "Pelajaran";
   const className = data.className || "Siswa";
   const teacher = data.teacher || "Pengajar";
 
-  return `Halo Guys! 10 menit lagi kelas ${subject} ${className} bareng ${teacher} di ${room} bakal dimulai nih. Yuk langsung masuk ruangan, siapin materi, dan tetap semangat kejar kampus impianmu. Let's go!`;
+  return `Perhatian. Sepuluh menit lagi, kelas ${subject} untuk ${className}, bersama ${teacher}, akan dimulai di ${room}. Mohon siswa segera menuju ruang kelas dan menyiapkan perlengkapan belajar. Terima kasih.`;
 }
 
 export interface AttendanceAnnouncementData {

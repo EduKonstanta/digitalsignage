@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { canonicalCardUid } from "@/lib/card-uid";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -61,7 +62,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { rows, onDuplicate } = parsed.data;
+    // UID disimpan kanonik, sama seperti form siswa dan pencocokan di route tap.
+    const rows = parsed.data.rows.map((row) => ({
+      ...row,
+      cardUid: row.cardUid ? canonicalCardUid(row.cardUid) || null : null,
+    }));
+    const { onDuplicate } = parsed.data;
 
     /**
      * NIS dan cardUid keduanya unik di basis data. Memeriksanya di muka jauh
@@ -70,19 +76,20 @@ export async function POST(req: NextRequest) {
      */
     const suppliedNis = rows.map((row) => row.nis).filter((nis): nis is string => !!nis);
 
+    // Semua pemegang kartu ikut dibaca (tabel siswa kecil) supaya UID lama yang
+    // tersimpan dengan format lain tetap terdeteksi sebagai duplikat.
     const existingStudents = await db.student.findMany({
       where: {
-        OR: [
-          { nis: { in: suppliedNis } },
-          { cardUid: { in: rows.map((row) => row.cardUid).filter((uid): uid is string => !!uid) } },
-        ],
+        OR: [{ nis: { in: suppliedNis } }, { cardUid: { not: null } }],
       },
       select: { id: true, nis: true, cardUid: true, name: true },
     });
 
     const byNis = new Map(existingStudents.map((student) => [student.nis, student]));
     const byCard = new Map(
-      existingStudents.filter((s) => s.cardUid).map((s) => [s.cardUid as string, s]),
+      existingStudents
+        .filter((s) => s.cardUid)
+        .map((s) => [canonicalCardUid(s.cardUid as string), s]),
     );
 
     const results: RowOutcome[] = [];
@@ -119,7 +126,8 @@ export async function POST(req: NextRequest) {
             results.push({ nis: row.nis ?? null, name: row.name, status: "skipped", reason: "NIS sudah terdaftar" });
             continue;
           }
-          await db.student.update({ where: { id: existing.id }, data });
+          const student = await db.student.update({ where: { id: existing.id }, data });
+          if (student.cardUid) byCard.set(student.cardUid, { ...student });
           updated += 1;
           results.push({ nis: row.nis ?? null, name: row.name, status: "updated" });
         } else {

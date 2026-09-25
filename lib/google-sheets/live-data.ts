@@ -125,6 +125,12 @@ const CACHE_TTL_MS = 20_000;
 
 let cache: { data: LiveAcademicData; expiresAt: number } | null = null;
 let inFlight: Promise<LiveAcademicData> | null = null;
+/**
+ * Hasil baca Google Sheet terakhir yang berhasil. Bila Sheet gagal dibaca
+ * sesaat (kuota, jaringan), data ini dipakai ulang supaya jadwal di TV tidak
+ * mendadak kosong. Hanya bertahan selama instance server masih hidup.
+ */
+let lastGoodBase: LiveAcademicData | null = null;
 
 function deterministicSourceId(sheet: string, key: string) {
   return `gs_${createHash("sha256")
@@ -446,10 +452,28 @@ export async function getLiveAcademicData(options?: { force?: boolean }): Promis
     try {
       const { getAcademicStore, applyAcademicStore } = await import("@/lib/academic-store");
       const [baseData, store] = await Promise.all([
-        fetchAndParse().catch((err) => {
-          console.warn("Failed to fetch Google Sheets data, fallback to empty base:", err);
+        fetchAndParse().then((data) => {
+          lastGoodBase = data;
+          return data;
+        }).catch((err): LiveAcademicData => {
+          console.warn("Failed to fetch Google Sheets data:", err);
           // Kegagalan dicatat sebagai issue supaya halaman Integrasi bisa
           // menampilkannya; tanpa ini Sheet mati terlihat seperti "0 data".
+          const connectionIssue: SyncIssue = {
+            sheet: "KONEKSI",
+            row: 0,
+            key: "-",
+            reason: `Gagal membaca Google Sheet: ${
+              err instanceof Error ? err.message : "penyebab tidak diketahui"
+            }`,
+          };
+          if (lastGoodBase) {
+            return {
+              ...lastGoodBase,
+              issues: [connectionIssue, ...lastGoodBase.issues],
+              fetchFailed: true,
+            };
+          }
           return {
             fetchedAt: new Date(),
             branches: [],
@@ -459,16 +483,7 @@ export async function getLiveAcademicData(options?: { force?: boolean }): Promis
             classes: [],
             subjects: [],
             schedules: [],
-            issues: [
-              {
-                sheet: "KONEKSI",
-                row: 0,
-                key: "-",
-                reason: `Gagal membaca Google Sheet: ${
-                  err instanceof Error ? err.message : "penyebab tidak diketahui"
-                }`,
-              },
-            ],
+            issues: [connectionIssue],
             fetchFailed: true,
           };
         }),
@@ -476,7 +491,6 @@ export async function getLiveAcademicData(options?: { force?: boolean }): Promis
       ]);
       const merged = applyAcademicStore(baseData, store);
       merged.fetchFailed = baseData.fetchFailed ?? false;
-      if (baseData.fetchFailed) merged.issues = [...baseData.issues, ...merged.issues];
       cache = { data: merged, expiresAt: Date.now() + CACHE_TTL_MS };
       inFlight = null;
       return merged;

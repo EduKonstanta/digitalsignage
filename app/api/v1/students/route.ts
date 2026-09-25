@@ -4,8 +4,15 @@ import { db } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/activity-log";
+import { canonicalCardUid, findCardConflict } from "@/lib/card-uid";
 
 export const dynamic = "force-dynamic";
+
+/** Nilai opsional dari body JSON; bukan string (mis. angka) tidak lagi membuat .trim() melempar. */
+function optionalText(value: unknown) {
+  if (value === undefined || value === null) return null;
+  return String(value).trim() || null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,7 +81,9 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const trimmedName = typeof name === "string" ? name.trim() : "";
-    const trimmedCard = typeof cardUid === "string" ? cardUid.trim() : "";
+    // Disimpan dalam bentuk kanonik (huruf besar, tanpa pemisah) supaya sama
+    // dengan cara route tap mencocokkan kartu.
+    const trimmedCard = typeof cardUid === "string" ? canonicalCardUid(cardUid) : "";
     const internalNis = typeof nis === "string" && nis.trim()
       ? nis.trim()
       : `RFID-${randomUUID()}`;
@@ -99,10 +108,12 @@ export async function POST(req: NextRequest) {
       return apiError("Identitas internal siswa sudah digunakan", "DUPLICATE_NIS", 409);
     }
 
-    // Check duplicate Card UID if supplied
-    const existingCard = await db.student.findUnique({
-      where: { cardUid: trimmedCard },
+    // Cek duplikat secara kanonik: data lama bisa tersimpan dengan format lain.
+    const cardHolders = await db.student.findMany({
+      where: { cardUid: { not: null } },
+      select: { id: true, name: true, cardUid: true },
     });
+    const existingCard = findCardConflict(cardHolders, trimmedCard);
     if (existingCard) {
       return apiError(
         `UID Kartu ${trimmedCard} sudah digunakan oleh siswa lain (${existingCard.name})`,
@@ -119,10 +130,10 @@ export async function POST(req: NextRequest) {
         className: internalClassName,
         voiceGender: normalizedVoiceGender,
         branchId: branchId || null,
-        parentName: parentName?.trim() || null,
-        parentPhone: parentPhone?.trim() || null,
-        studentPhone: studentPhone?.trim() || null,
-        photoUrl: photoUrl?.trim() || null,
+        parentName: optionalText(parentName),
+        parentPhone: optionalText(parentPhone),
+        studentPhone: optionalText(studentPhone),
+        photoUrl: optionalText(photoUrl),
         isActive: Boolean(isActive),
       },
     });

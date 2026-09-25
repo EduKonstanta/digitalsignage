@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     const [live, screens] = await Promise.all([
       getLiveAcademicData(),
-      db.screen.findMany({ select: { roomId: true } }),
+      db.screen.findMany({ where: { revokedAt: null }, select: { roomId: true } }),
     ]);
 
     const rooms = live.rooms

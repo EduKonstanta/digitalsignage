@@ -15,7 +15,25 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get("studentId");
     const className = searchParams.get("className");
     const type = searchParams.get("type");
-    const limit = Math.min(Number(searchParams.get("limit") || 50), 200);
+    // Nilai query yang tidak valid dijawab 400, bukan diteruskan ke Prisma lalu
+    // berakhir sebagai 500 (take: NaN, tanggal "Invalid Date", tipe sembarang).
+    const rawLimit = Number(searchParams.get("limit") || 50);
+    if (!Number.isFinite(rawLimit) || rawLimit < 1) {
+      return apiError("Parameter limit harus angka positif", "INVALID_LIMIT", 400);
+    }
+    const limit = Math.min(Math.floor(rawLimit), 200);
+
+    if (type && type !== "CHECK_IN" && type !== "CHECK_OUT") {
+      return apiError("Parameter type harus CHECK_IN atau CHECK_OUT", "INVALID_TYPE", 400);
+    }
+
+    if (
+      date &&
+      (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        Number.isNaN(new Date(`${date}T00:00:00+07:00`).getTime()))
+    ) {
+      return apiError("Parameter date harus berformat YYYY-MM-DD", "INVALID_DATE", 400);
+    }
 
     const where: Record<string, unknown> = {};
 
