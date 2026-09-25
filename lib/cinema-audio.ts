@@ -61,9 +61,12 @@ export function selectVoice(voices: SpeechSynthesisVoice[], options: SpeechOptio
   const language = (options.language || "id-ID").toLowerCase();
   const languagePrefix = language.split("-")[0];
   const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
+  // Sebagian browser TV hanya memasang voice bahasa Inggris. Memilih voice
+  // sistem tersebut tetap lebih baik daripada membiarkan announcement diam.
+  const candidates = matching.length ? matching : voices;
 
   if (options.preferredVoiceName) {
-    const preferred = matching.find((voice) =>
+    const preferred = candidates.find((voice) =>
       voice.name.toLowerCase().includes(options.preferredVoiceName!.toLowerCase()),
     );
     if (preferred) return { voice: preferred, genderMatched: true };
@@ -71,13 +74,13 @@ export function selectVoice(voices: SpeechSynthesisVoice[], options: SpeechOptio
 
   const gender = options.gender || "AUTO";
   if (gender !== "AUTO") {
-    const genderVoice = matching.find((voice) => VOICE_HINTS[gender].test(voice.name));
+    const genderVoice = candidates.find((voice) => VOICE_HINTS[gender].test(voice.name));
     if (genderVoice) return { voice: genderVoice, genderMatched: true };
   }
 
   return {
     voice:
-      matching.find((voice) => /natural|google|indonesian/i.test(voice.name)) || matching[0],
+      candidates.find((voice) => /natural|google|indonesian/i.test(voice.name)) || candidates[0],
     genderMatched: false,
   };
 }
@@ -91,23 +94,6 @@ export function resolvePitch(gender: SpeechGender, genderMatched: boolean) {
 export async function unlockSignageAudio() {
   if (typeof window === "undefined") return false;
   const context = getAudioContext();
-
-  // Browser TV sering mengunci Web Speech sampai `speak()` dipanggil langsung
-  // dari gesture remote/touch pertama. Ucapan hening ini hanya memancing mesin
-  // TTS, lalu langsung dibatalkan sehingga pengguna tidak mendengar apa pun.
-  if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-      const primer = new SpeechSynthesisUtterance(" ");
-      primer.volume = 0;
-      window.speechSynthesis.speak(primer);
-      window.speechSynthesis.cancel();
-    } catch {
-      // AudioContext masih dapat dipakai untuk chime/audio file bila TTS TV gagal.
-    }
-  }
-
   if (context?.state === "suspended") await context.resume();
   window.speechSynthesis?.resume();
   const enabled = !context || context.state === "running";
@@ -219,7 +205,12 @@ export async function speakGenZSpeech(text: string, options: SpeechOptions = {})
   utterance.volume = options.volume ?? 1;
 
   const { voice, genderMatched } = selectVoice(await loadVoices(), options);
-  if (voice) utterance.voice = voice;
+  if (voice) {
+    utterance.voice = voice;
+    // Selaraskan bahasa dengan voice yang betul-betul tersedia di TV. Ini
+    // mencegah beberapa WebView menolak utterance id-ID saat hanya ada en-US.
+    utterance.lang = voice.lang || utterance.lang;
+  }
   utterance.pitch = options.pitch ?? resolvePitch(options.gender || "AUTO", genderMatched);
 
   await new Promise<void>((resolve) => {

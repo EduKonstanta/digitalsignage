@@ -68,6 +68,14 @@ describe("selectVoice", () => {
     expect(result.voice.name).toBe("Google Bahasa Indonesia");
     expect(result.genderMatched).toBe(false);
   });
+
+  it("memakai voice sistem bila TV tidak menyediakan suara Indonesia", () => {
+    const englishOnly = [voice("Android English", "en-US")];
+    const result = selectVoice(englishOnly, { language: "id-ID" });
+
+    expect(result.voice?.name).toBe("Android English");
+    expect(result.genderMatched).toBe(false);
+  });
 });
 
 describe("resolvePitch", () => {
