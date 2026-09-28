@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { ScheduleManualStatus } from "@/domain/schedule-status";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
-import { updateSchedule, deleteSchedule } from "@/lib/academic-store";
+import { createClass, updateSchedule, deleteSchedule } from "@/lib/academic-store";
 import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
 import { z } from "zod";
 
@@ -15,6 +15,7 @@ const updateScheduleSchema = z.object({
   branchId: z.string().optional(),
   programId: z.string().optional(),
   classId: z.string().optional(),
+  className: z.string().trim().optional(),
   subjectId: z.string().optional(),
   tutorId: z.string().optional(),
   roomId: z.string().optional(),
@@ -25,6 +26,14 @@ const updateScheduleSchema = z.object({
     .optional(),
   notes: z.string().optional().nullable(),
 });
+
+function isElcProgram(programName: string) {
+  return programName.trim().toUpperCase() === "ELC";
+}
+
+function normalizedName(name: string) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 export async function PUT(
   req: NextRequest,
@@ -51,16 +60,60 @@ async function handleUpdate(
     const { id } = await context.params;
     const body = await req.json();
     const validated = updateScheduleSchema.parse(body);
+    const needsLiveData =
+      validated.startAt ||
+      validated.endAt ||
+      validated.roomId ||
+      validated.tutorId ||
+      validated.programId ||
+      validated.classId ||
+      validated.className;
+    const live = needsLiveData ? await getLiveAcademicData() : null;
+    const existing = live?.schedules.find((schedule) => schedule.id === id);
+
+    if (needsLiveData && !existing) {
+      return apiError("Jadwal tidak ditemukan", "SCHEDULE_NOT_FOUND", 404);
+    }
+
+    let classId = validated.classId;
+    let pendingClass:
+      | {
+          programId: string;
+          name: string;
+        }
+      | null = null;
+
+    if (live && existing && (validated.programId || validated.className || validated.classId)) {
+      const programId = validated.programId ?? existing.programId;
+      const program = live.programs.find((p) => p.id === programId);
+
+      if (!program) {
+        return apiError("Program tidak ditemukan", "PROGRAM_NOT_FOUND", 400);
+      }
+
+      if (isElcProgram(program.name)) {
+        classId = validated.classId ?? existing.classId;
+
+        const klass = live.classes.find((c) => c.id === classId && c.programId === programId);
+        if (!klass) {
+          return apiError("Kelas tidak ditemukan untuk program yang dipilih", "CLASS_NOT_FOUND", 400);
+        }
+      } else if (validated.className?.trim()) {
+        const className = validated.className.trim().replace(/\s+/g, " ");
+        const existingClass = live.classes.find(
+          (c) => c.programId === programId && normalizedName(c.name) === normalizedName(className),
+        );
+        classId = existingClass?.id;
+        pendingClass = existingClass ? null : { programId, name: className };
+      } else if (validated.programId && !validated.classId) {
+        return apiError("Nama siswa wajib diisi", "STUDENT_NAME_REQUIRED", 400);
+      }
+    }
 
     // Validasi yang sama seperti POST: tanpa ini, edit jadwal bisa membuat
     // ruangan/tutor dobel-booking atau jam selesai mendahului jam mulai.
     if (validated.startAt || validated.endAt || validated.roomId || validated.tutorId) {
-      const live = await getLiveAcademicData();
-      const existing = live.schedules.find((schedule) => schedule.id === id);
-
-      if (!existing) {
-        return apiError("Jadwal tidak ditemukan", "SCHEDULE_NOT_FOUND", 404);
-      }
+      if (!live || !existing) return apiError("Jadwal tidak ditemukan", "SCHEDULE_NOT_FOUND", 404);
 
       const startAt = validated.startAt ? new Date(validated.startAt) : existing.startAt;
       const endAt = validated.endAt ? new Date(validated.endAt) : existing.endAt;
@@ -119,12 +172,24 @@ async function handleUpdate(
       }
     }
 
+    if (!classId && pendingClass) {
+      classId = (
+        await createClass(
+          {
+            programId: pendingClass.programId,
+            name: pendingClass.name,
+          },
+          admin.id,
+        )
+      ).id;
+    }
+
     const updated = await updateSchedule(
       id,
       {
         ...(validated.branchId ? { branchId: validated.branchId } : {}),
         ...(validated.programId ? { programId: validated.programId } : {}),
-        ...(validated.classId ? { classId: validated.classId } : {}),
+        ...(classId ? { classId } : {}),
         ...(validated.subjectId ? { subjectId: validated.subjectId } : {}),
         ...(validated.tutorId ? { tutorId: validated.tutorId } : {}),
         ...(validated.roomId ? { roomId: validated.roomId } : {}),

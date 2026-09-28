@@ -126,6 +126,10 @@ function todayJakartaDate() {
   return jakartaDateTimeParts(new Date().toISOString()).date;
 }
 
+function isElcProgramName(name?: string) {
+  return (name || "").trim().toUpperCase() === "ELC";
+}
+
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +155,7 @@ export default function SchedulesPage() {
     tutorId: "",
     programId: "",
     classId: "",
+    className: "",
     subjectId: "",
     date: todayJakartaDate(),
     startTime: "08:00",
@@ -169,6 +174,7 @@ export default function SchedulesPage() {
     tutorId: "",
     programId: "",
     classId: "",
+    className: "",
     subjectId: "",
     date: "",
     startTime: "",
@@ -200,6 +206,15 @@ export default function SchedulesPage() {
       setLoading(false);
     }
   }, []);
+
+  const shouldUseManualClassInput = (programId: string) => {
+    if (!programId) return false;
+    const program = programs.find((p) => p.id === programId);
+    return program ? !isElcProgramName(program.name) : false;
+  };
+
+  const firstClassIdForProgram = (programId: string) =>
+    classes.find((c) => c.programId === programId)?.id || "";
 
   useEffect(() => {
     fetchSchedules();
@@ -235,12 +250,14 @@ export default function SchedulesPage() {
     setCreateError(null);
     const defaultBranchId = branches[0]?.id || "";
     const defaultProgramId = programs[0]?.id || "";
+    const usesManualClassInput = shouldUseManualClassInput(defaultProgramId);
     setCreateForm({
       branchId: defaultBranchId,
       roomId: rooms.find((r) => r.branchId === defaultBranchId)?.id || "",
       tutorId: tutors[0]?.id || "",
       programId: defaultProgramId,
-      classId: classes.find((c) => c.programId === defaultProgramId)?.id || "",
+      classId: usesManualClassInput ? "" : firstClassIdForProgram(defaultProgramId),
+      className: "",
       subjectId: subjects[0]?.id || "",
       date: todayJakartaDate(),
       startTime: "08:00",
@@ -254,12 +271,16 @@ export default function SchedulesPage() {
   const openDuplicateModal = (sch: ScheduleRecord) => {
     setIsCreatingSchedule(true);
     setCreateError(null);
+    const usesManualClassInput = sch.program
+      ? !isElcProgramName(sch.program.name)
+      : shouldUseManualClassInput(sch.programId);
     setCreateForm({
       branchId: sch.branchId,
       roomId: sch.roomId,
       tutorId: sch.tutorId,
       programId: sch.programId,
-      classId: sch.classId,
+      classId: usesManualClassInput ? "" : sch.classId,
+      className: usesManualClassInput ? sch.class?.name || "" : "",
       subjectId: sch.subjectId,
       date: todayJakartaDate(),
       startTime: jakartaDateTimeParts(sch.startAt).time,
@@ -278,6 +299,7 @@ export default function SchedulesPage() {
     try {
       const startAt = jakartaInputToIso(createForm.date, createForm.startTime);
       const endAt = jakartaInputToIso(createForm.date, createForm.endTime);
+      const usesManualClassInput = shouldUseManualClassInput(createForm.programId);
 
       const res = await fetch("/api/v1/schedules", {
         method: "POST",
@@ -287,7 +309,8 @@ export default function SchedulesPage() {
           roomId: createForm.roomId,
           tutorId: createForm.tutorId,
           programId: createForm.programId,
-          classId: createForm.classId,
+          classId: usesManualClassInput ? undefined : createForm.classId,
+          className: usesManualClassInput ? createForm.className.trim() : undefined,
           subjectId: createForm.subjectId,
           startAt,
           endAt,
@@ -328,6 +351,7 @@ export default function SchedulesPage() {
       tutorId: sch.tutorId,
       programId: sch.programId,
       classId: sch.classId,
+      className: sch.class?.name || "",
       subjectId: sch.subjectId,
       date: dateStr,
       startTime: startTimeStr,
@@ -348,6 +372,7 @@ export default function SchedulesPage() {
     try {
       const startAt = jakartaInputToIso(editForm.date, editForm.startTime);
       const endAt = jakartaInputToIso(editForm.date, editForm.endTime);
+      const usesManualClassInput = shouldUseManualClassInput(editForm.programId);
 
       const res = await fetch(`/api/v1/schedules/${editingSchedule.id}`, {
         method: "PUT",
@@ -357,7 +382,8 @@ export default function SchedulesPage() {
           roomId: editForm.roomId,
           tutorId: editForm.tutorId,
           programId: editForm.programId,
-          classId: editForm.classId,
+          classId: usesManualClassInput ? undefined : editForm.classId,
+          className: usesManualClassInput ? editForm.className.trim() : undefined,
           subjectId: editForm.subjectId,
           startAt,
           endAt,
@@ -419,6 +445,8 @@ export default function SchedulesPage() {
 
     return matchesSearch && matchesStatus;
   });
+  const createUsesManualClassInput = shouldUseManualClassInput(createForm.programId);
+  const editUsesManualClassInput = shouldUseManualClassInput(editForm.programId);
 
   return (
     <div className="space-y-6">
@@ -647,7 +675,16 @@ export default function SchedulesPage() {
                   <select
                     className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs"
                     value={createForm.programId}
-                    onChange={(e) => setCreateForm({ ...createForm, programId: e.target.value, classId: "" })}
+                    onChange={(e) => {
+                      const programId = e.target.value;
+                      const usesManualClassInput = shouldUseManualClassInput(programId);
+                      setCreateForm({
+                        ...createForm,
+                        programId,
+                        classId: usesManualClassInput ? "" : firstClassIdForProgram(programId),
+                        className: "",
+                      });
+                    }}
                     required
                   >
                     <option value="" disabled>Pilih Program</option>
@@ -658,23 +695,38 @@ export default function SchedulesPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">
-                    Rombel / Kelas {createForm.programId ? "" : "(pilih Program dulu)"}
-                  </label>
-                  <select
-                    className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs disabled:opacity-60"
-                    value={createForm.classId}
-                    onChange={(e) => setCreateForm({ ...createForm, classId: e.target.value })}
-                    disabled={!createForm.programId}
-                    required
-                  >
-                    <option value="" disabled>Pilih Kelas</option>
-                    {classes
-                      .filter((c) => !createForm.programId || c.programId === createForm.programId)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                  </select>
+                  {createUsesManualClassInput ? (
+                    <>
+                      <label className="text-xs font-semibold text-muted-foreground">Nama Siswa</label>
+                      <Input
+                        placeholder="Contoh: Budi Santoso"
+                        className="h-9 text-xs"
+                        value={createForm.className}
+                        onChange={(e) => setCreateForm({ ...createForm, className: e.target.value })}
+                        required
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <label className="text-xs font-semibold text-muted-foreground">
+                        Rombel / Kelas {createForm.programId ? "" : "(pilih Program dulu)"}
+                      </label>
+                      <select
+                        className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs disabled:opacity-60"
+                        value={createForm.classId}
+                        onChange={(e) => setCreateForm({ ...createForm, classId: e.target.value })}
+                        disabled={!createForm.programId}
+                        required
+                      >
+                        <option value="" disabled>Pilih Kelas</option>
+                        {classes
+                          .filter((c) => !createForm.programId || c.programId === createForm.programId)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                      </select>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -845,7 +897,16 @@ export default function SchedulesPage() {
                   <select
                     className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs"
                     value={editForm.programId}
-                    onChange={(e) => setEditForm({ ...editForm, programId: e.target.value, classId: "" })}
+                    onChange={(e) => {
+                      const programId = e.target.value;
+                      const usesManualClassInput = shouldUseManualClassInput(programId);
+                      setEditForm({
+                        ...editForm,
+                        programId,
+                        classId: usesManualClassInput ? "" : firstClassIdForProgram(programId),
+                        className: "",
+                      });
+                    }}
                     required
                   >
                     {programs.map((p) => (
@@ -855,19 +916,34 @@ export default function SchedulesPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Rombel / Kelas</label>
-                  <select
-                    className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs"
-                    value={editForm.classId}
-                    onChange={(e) => setEditForm({ ...editForm, classId: e.target.value })}
-                    required
-                  >
-                    {classes
-                      .filter((c) => !editForm.programId || c.programId === editForm.programId)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                  </select>
+                  {editUsesManualClassInput ? (
+                    <>
+                      <label className="text-xs font-semibold text-muted-foreground">Nama Siswa</label>
+                      <Input
+                        placeholder="Contoh: Budi Santoso"
+                        className="h-9 text-xs"
+                        value={editForm.className}
+                        onChange={(e) => setEditForm({ ...editForm, className: e.target.value })}
+                        required
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <label className="text-xs font-semibold text-muted-foreground">Rombel / Kelas</label>
+                      <select
+                        className="w-full h-9 px-3 rounded-md bg-background border border-input text-foreground text-xs"
+                        value={editForm.classId}
+                        onChange={(e) => setEditForm({ ...editForm, classId: e.target.value })}
+                        required
+                      >
+                        {classes
+                          .filter((c) => !editForm.programId || c.programId === editForm.programId)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                      </select>
+                    </>
+                  )}
                 </div>
               </div>
 

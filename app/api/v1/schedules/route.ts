@@ -3,13 +3,14 @@ import { computeScheduleStatus, ScheduleManualStatus } from "@/domain/schedule-s
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/auth";
 import { getLiveAcademicData } from "@/lib/google-sheets/live-data";
-import { createSchedule } from "@/lib/academic-store";
+import { createClass, createSchedule } from "@/lib/academic-store";
 import { z } from "zod";
 
 const scheduleSchema = z.object({
   branchId: z.string().min(1, "Cabang wajib dipilih"),
   programId: z.string().min(1, "Program wajib dipilih"),
-  classId: z.string().min(1, "Kelas wajib dipilih"),
+  classId: z.string().trim().optional(),
+  className: z.string().trim().optional(),
   subjectId: z.string().min(1, "Mata pelajaran wajib dipilih"),
   tutorId: z.string().min(1, "Tutor wajib dipilih"),
   roomId: z.string().min(1, "Ruangan wajib dipilih"),
@@ -20,6 +21,14 @@ const scheduleSchema = z.object({
     .default("NONE"),
   notes: z.string().optional().nullable(),
 });
+
+function isElcProgram(programName: string) {
+  return programName.trim().toUpperCase() === "ELC";
+}
+
+function normalizedName(name: string) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,6 +90,36 @@ export async function POST(req: NextRequest) {
     }
 
     const live = await getLiveAcademicData();
+    const program = live.programs.find((p) => p.id === validated.programId);
+
+    if (!program) {
+      return apiError("Program tidak ditemukan", "PROGRAM_NOT_FOUND", 400);
+    }
+
+    let classId = validated.classId || "";
+    let pendingClassName: string | null = null;
+
+    if (isElcProgram(program.name)) {
+      if (!classId) {
+        return apiError("Kelas wajib dipilih", "CLASS_REQUIRED", 400);
+      }
+
+      const klass = live.classes.find((c) => c.id === classId && c.programId === validated.programId);
+      if (!klass) {
+        return apiError("Kelas tidak ditemukan untuk program yang dipilih", "CLASS_NOT_FOUND", 400);
+      }
+    } else {
+      const className = validated.className?.trim().replace(/\s+/g, " ");
+      if (!className) {
+        return apiError("Nama siswa wajib diisi", "STUDENT_NAME_REQUIRED", 400);
+      }
+
+      const existingClass = live.classes.find(
+        (c) => c.programId === validated.programId && normalizedName(c.name) === normalizedName(className),
+      );
+      classId = existingClass?.id ?? "";
+      pendingClassName = existingClass ? null : className;
+    }
 
     // Check Room Conflict
     const roomConflict = live.schedules.find((s) => {
@@ -128,11 +167,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!classId && pendingClassName) {
+      classId = (
+        await createClass(
+          {
+            programId: validated.programId,
+            name: pendingClassName,
+          },
+          admin.id,
+        )
+      ).id;
+    }
+
     const schedule = await createSchedule(
       {
         branchId: validated.branchId,
         programId: validated.programId,
-        classId: validated.classId,
+        classId,
         subjectId: validated.subjectId,
         tutorId: validated.tutorId,
         roomId: validated.roomId,
